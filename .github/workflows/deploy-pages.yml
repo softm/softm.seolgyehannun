@@ -22,17 +22,17 @@ jobs:
       VITE_DEPLOY_TARGET: github-pages
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.25.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22.12.0
+          node-version: 22.13.1
           cache: pnpm
 
       - name: Setup Pages
@@ -45,7 +45,7 @@ jobs:
         run: pnpm verify
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
