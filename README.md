@@ -27,7 +27,7 @@
 - Cloud Functions v2와 Scheduler (`asia-northeast3`, Node.js 22)
 - Vitest, Firebase Rules Unit Testing
 
-Node.js 22.12 이상을 사용합니다. Functions 운영 런타임은 Node.js 22로 고정되어 있습니다. Firebase Emulator 실행에는 Java 21 이상이 필요합니다.
+Node.js 22.13 이상을 사용합니다. Functions 운영 런타임은 Node.js 22로 고정되어 있습니다. Firebase Emulator 실행에는 Java 21 이상이 필요합니다.
 
 ## 로컬 실행
 
