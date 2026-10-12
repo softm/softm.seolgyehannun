@@ -1,0 +1,53 @@
+{
+  "name": "seolgye-hannun",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --project demo-seolgye-hannun --only firestore,storage 'vitest run --config vitest.emulator.config.ts'",
+    "typecheck": "tsc -b --pretty false",
+    "functions:build": "pnpm --dir functions build",
+    "verify": "pnpm test && pnpm build && pnpm functions:build",
+    "emulators": "firebase emulators:start",
+    "deploy:preview": "firebase hosting:channel:deploy preview",
+    "deploy": "firebase deploy"
+  },
+  "dependencies": {
+    "@fontsource-variable/noto-sans-kr": "^5.2.8",
+    "date-fns": "^4.1.0",
+    "docx": "^9.5.1",
+    "file-saver": "^2.0.5",
+    "firebase": "^12.8.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.4",
+    "lucide-react": "^0.468.0",
+    "ol": "^10.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.12.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "firebase-tools": "^15.1.0",
+    "jsdom": "^27.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0",
+    "vitest": "^4.0.16"
+  }
+}

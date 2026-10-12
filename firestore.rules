@@ -1,0 +1,107 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membership(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isMember(orgId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function hasRole(orgId, roles) {
+      return isMember(orgId) && membership(orgId).data.role in roles;
+    }
+
+    function canEdit(orgId) {
+      return hasRole(orgId, ['admin', 'editor']);
+    }
+
+    function isAdmin(orgId) {
+      return hasRole(orgId, ['admin']);
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow read, update: if signedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /organizations/{orgId} {
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow read: if isMember(orgId);
+      allow update: if isAdmin(orgId);
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isMember(orgId);
+        allow create, update, delete: if isAdmin(orgId);
+      }
+
+      match /invitations/{invitationId} {
+        allow read, create, update, delete: if isAdmin(orgId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId);
+      }
+
+      match /catalogs/{catalogId} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId);
+      }
+
+      match /cases/{caseId} {
+        allow read: if isMember(orgId);
+        allow create, update: if canEdit(orgId)
+          && request.resource.data.organizationId == orgId;
+        allow delete: if canEdit(orgId);
+
+        match /parcels/{parcelId} {
+          allow read: if isMember(orgId);
+          allow write: if canEdit(orgId);
+        }
+
+        match /sections/{sectionId} {
+          allow read: if isMember(orgId);
+          allow write: if canEdit(orgId);
+        }
+
+        match /notes/{noteId} {
+          allow read: if isMember(orgId);
+          allow write: if canEdit(orgId);
+        }
+
+        match /attachments/{attachmentId} {
+          allow read: if isMember(orgId);
+          allow write: if canEdit(orgId);
+        }
+
+        match /events/{eventId} {
+          allow read: if isMember(orgId);
+          allow write: if false;
+        }
+
+        match /documents/{documentId} {
+          allow read: if isMember(orgId);
+          allow write: if false;
+        }
+
+        match /notifications/{notificationId} {
+          allow read: if isMember(orgId);
+          allow create, delete: if false;
+          allow update: if isMember(orgId)
+            && resource.data.recipientId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+        }
+      }
+    }
+  }
+}

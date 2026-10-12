@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membership(orgId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isMember(orgId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function canEdit(orgId) {
+      return isMember(orgId) && membership(orgId).data.role in ['admin', 'editor'];
+    }
+
+    function allowedExtension(fileName) {
+      return fileName.matches('.*\\.(pdf|PDF|png|PNG|jpg|JPG|jpeg|JPEG|dwg|DWG|dxf|DXF|docx|DOCX|hwpx|HWPX|xlsx|XLSX)$');
+    }
+
+    function allowedMime() {
+      return request.resource.contentType.matches('application/pdf')
+        || request.resource.contentType.matches('image/(png|jpeg)')
+        || request.resource.contentType.matches('application/(vnd\\.openxmlformats-officedocument\\.(wordprocessingml\\.document|spreadsheetml\\.sheet)|octet-stream)')
+        || request.resource.contentType.matches('image/vnd\\.dwg')
+        || request.resource.contentType.matches('application/dxf')
+        || request.resource.contentType.matches('application/haansofthwpx');
+    }
+
+    match /organizations/{orgId}/cases/{caseId}/attachments/{attachmentId}/{fileName} {
+      allow read: if isMember(orgId);
+      allow create, update: if canEdit(orgId)
+        && request.resource.size <= 50 * 1024 * 1024
+        && allowedExtension(fileName)
+        && allowedMime();
+      allow delete: if canEdit(orgId);
+    }
+
+    match /organizations/{orgId}/cases/{caseId}/documents/{documentId}/{fileName} {
+      allow read: if isMember(orgId);
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
