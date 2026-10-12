@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 const isGitHubPages = process.env.VITE_DEPLOY_TARGET === "github-pages";
 
 export default defineConfig({
-  base: isGitHubPages ? "/softm.seolgyehannun/" : "/",
+  base: isGitHubPages ? "./" : "/",
   plugins: [react()],
   server: {
     port: 5173,

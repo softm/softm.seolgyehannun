@@ -99,9 +99,10 @@ organizations/{organizationId}
 GitHub `main` 브랜치에 푸시하면 GitHub Actions가 검증과 빌드를 수행한 뒤 Pages에 정적 체험판을 배포합니다.
 
 - 저장소: <https://github.com/softm/softm.seolgyehannun>
-- 체험판: <https://softm.github.io/softm.seolgyehannun/>
+- 서비스: <https://seolgyehannun.designboard.net/>
+- GitHub Pages 기본 주소: <https://softm.github.io/softm.seolgyehannun/>
 
-Pages 빌드는 Firebase 비밀값 없이 샘플 업무 공간으로 동작하며, Hash Router를 사용해 새로고침과 하위 화면 이동을 지원합니다. 실제 조직 데이터·로그인·파일 저장·Cloud Functions를 사용하려면 아래 Firebase 운영 배포를 별도로 연결해야 합니다.
+Pages 빌드는 상대 자산 경로와 Hash Router를 사용하므로 커스텀 도메인과 GitHub Pages 기본 주소에서 모두 동작합니다. Firebase 비밀값 없이 샘플 업무 공간을 제공하며, 실제 조직 데이터·로그인·파일 저장·Cloud Functions를 사용하려면 아래 Firebase 운영 배포를 별도로 연결해야 합니다.
 
 먼저 Emulator에서 검증한 뒤 Preview Channel을 사용합니다.
 
