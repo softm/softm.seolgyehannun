@@ -1,0 +1,28 @@
+{
+  "name": "seolgye-hannun-functions",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "pnpm build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans-kr": "4.5.12",
+    "docx": "^9.5.1",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.3",
+    "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pdfkit": "^0.17.4",
+    "typescript": "^5.9.3"
+  }
+}
