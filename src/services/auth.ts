@@ -57,7 +57,12 @@ export function observeUser(callback: (user: AppUser | null) => void): () => voi
   const services = getFirebaseServices();
   if (!services) return () => undefined;
   return onAuthStateChanged(services.auth, async (user) => {
-    callback(user ? await mapFirebaseUser(user) : null);
+    if (user) {
+      localStorage.removeItem(demoSessionKey);
+      callback(await mapFirebaseUser(user));
+      return;
+    }
+    callback(localStorage.getItem(demoSessionKey) === "active" ? demoUser : null);
   });
 }
 
@@ -69,6 +74,7 @@ export function startDemoSession(): AppUser {
 export async function signInWithGoogle(): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) return startDemoSession();
+  localStorage.removeItem(demoSessionKey);
   const credential = await signInWithPopup(services.auth, new GoogleAuthProvider());
   return mapFirebaseUser(credential.user);
 }
@@ -76,6 +82,7 @@ export async function signInWithGoogle(): Promise<AppUser> {
 export async function signInWithEmail(email: string, password: string): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) return startDemoSession();
+  localStorage.removeItem(demoSessionKey);
   const credential = await signInWithEmailAndPassword(services.auth, email, password);
   return mapFirebaseUser(credential.user);
 }
@@ -83,6 +90,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
 export async function registerWithEmail(name: string, organizationName: string, email: string, password: string): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) return startDemoSession();
+  localStorage.removeItem(demoSessionKey);
   const credential = await createUserWithEmailAndPassword(services.auth, email, password);
   await updateProfile(credential.user, { displayName: name });
   if (organizationName.trim()) {

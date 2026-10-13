@@ -1,17 +1,29 @@
 import type { CaseRecord } from "../types";
-import { buildCaseDocumentModel } from "../domain/documentModel";
+import { buildCaseDocumentModels, type CaseDocumentModel } from "../domain/documentModel";
 import { formatSeoulDate } from "../domain/date";
 
-const bodyFont = "Noto Sans KR";
+const bodyFont = "NanumGothic";
+
+async function loadDocxFont(): Promise<Uint8Array> {
+  const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+  const response = await fetch(new URL("fonts/NanumGothic.ttf", baseUrl));
+  if (!response.ok) throw new Error("DOCX 한글 글꼴을 불러오지 못했습니다.");
+  return new Uint8Array(await response.arrayBuffer());
+}
 
 function fileBaseName(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
 }
 
 export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
-  const [docxModule, fileSaverModule] = await Promise.all([import("docx"), import("file-saver")]);
+  const [docxModule, fileSaverModule, fontData] = await Promise.all([
+    import("docx"),
+    import("file-saver"),
+    loadDocxFont(),
+  ]);
   const {
     AlignmentType,
+    CharacterSet,
     Document,
     HeadingLevel,
     Packer,
@@ -24,110 +36,139 @@ export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
     WidthType,
   } = docxModule;
   const { saveAs } = fileSaverModule;
+  const models = buildCaseDocumentModels(caseRecord);
+  if (!models.length) throw new Error("출력에 포함할 문서를 1개 이상 선택해 주세요.");
+
   const tableCell = (text: string, isHeader = false) => new TableCell({
     shading: isHeader ? { type: ShadingType.SOLID, fill: "004541", color: "auto" } : undefined,
-    margins: { top: 120, bottom: 120, left: 140, right: 140 },
+    margins: { top: 80, bottom: 80, left: 120, right: 120 },
     children: [new Paragraph({
-      children: [new TextRun({ text, bold: isHeader, color: isHeader ? "FFFFFF" : "0C1C2E", font: bodyFont, size: 20 })],
+      children: [new TextRun({ text, bold: isHeader, color: isHeader ? "FFFFFF" : "0C1C2E", font: bodyFont, size: 18 })],
     })],
   });
-  const model = buildCaseDocumentModel(caseRecord);
-  const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
-    new Paragraph({
-      text: model.title,
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({
-        text: `문서 버전 ${model.version} · 작성자 ${model.author} · 생성 ${formatSeoulDate(model.createdAt)}`,
-        color: "475467",
-        font: bodyFont,
-        size: 19,
-      })],
-      spacing: { after: 360 },
-    }),
-    new Paragraph({ text: "대상 필지", heading: HeadingLevel.HEADING_1 }),
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({ children: [tableCell("주소", true), tableCell("PNU", true), tableCell("대장면적", true), tableCell("용도지역", true)] }),
-        ...model.parcels.map((parcel) => new TableRow({ children: [
-          tableCell(parcel.address), tableCell(parcel.pnu), tableCell(parcel.area), tableCell(parcel.zoning),
-        ] })),
-      ],
-    }),
-    new Paragraph({ text: "허가 및 관련 절차", heading: HeadingLevel.HEADING_1, spacing: { before: 320 } }),
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({ children: [tableCell("절차", true), tableCell("관계", true), tableCell("신청", true), tableCell("검토", true)] }),
-        ...model.permits.map((permit) => new TableRow({ children: [
-          tableCell(permit.name), tableCell(permit.relation), tableCell(permit.application), tableCell(permit.review),
-        ] })),
-      ],
-    }),
-  ];
+  const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [];
 
-  model.sections.forEach((section) => {
-    children.push(new Paragraph({ text: section.title, heading: HeadingLevel.HEADING_1, spacing: { before: 320 } }));
-    section.paragraphs.forEach((text) => children.push(new Paragraph({
-      children: [new TextRun({ text, font: bodyFont, size: 22 })],
-      spacing: { after: 140, line: 360 },
-    })));
-  });
+  models.forEach((model, modelIndex) => {
+    children.push(
+      new Paragraph({
+        text: model.title,
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER,
+        pageBreakBefore: modelIndex > 0,
+        spacing: { after: 180 },
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: model.statusLabel, bold: true, color: "006B63", font: bodyFont, size: 19 })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({
+          text: `${model.templateVersion} · 문서 v${model.version} · ${model.author} · ${formatSeoulDate(model.createdAt)}`,
+          color: "475467",
+          font: bodyFont,
+          size: 17,
+        })],
+        spacing: { after: 260 },
+      }),
+    );
 
-  children.push(new Paragraph({ text: "첨부 목록", heading: HeadingLevel.HEADING_1, spacing: { before: 320 } }));
-  if (model.attachments.length) {
+    model.sections.forEach((section) => {
+      children.push(new Paragraph({ text: section.title, heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 240, after: 100 } }));
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ tableHeader: true, children: [tableCell("항목", true), tableCell("작성 내용", true)] }),
+          ...section.fields.map((field) => new TableRow({ children: [
+            tableCell(`${field.label}${field.required ? " *" : ""}`),
+            tableCell(field.value),
+          ] })),
+        ],
+      }));
+    });
+
+    children.push(new Paragraph({ text: "대상 필지 및 면적", heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 280, after: 100 } }));
     children.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
-        new TableRow({ children: [tableCell("파일명", true), tableCell("역할", true), tableCell("버전", true)] }),
-        ...model.attachments.map((attachment) => new TableRow({ children: [
-          tableCell(attachment.name), tableCell(attachment.role), tableCell(attachment.version),
+        new TableRow({ tableHeader: true, children: [tableCell("지번·주소", true), tableCell("역할", true), tableCell("대장", true), tableCell("실측", true), tableCell("계획", true), tableCell("도로", true), tableCell("제외", true), tableCell("소유자", true)] }),
+        ...model.parcels.map((parcel) => new TableRow({ children: [
+          tableCell(parcel.address), tableCell(parcel.role), tableCell(parcel.ledgerArea), tableCell(parcel.surveyedArea),
+          tableCell(parcel.plannedArea), tableCell(parcel.roadArea), tableCell(parcel.excludedArea), tableCell(parcel.owner),
         ] })),
       ],
     }));
-  } else {
-    children.push(new Paragraph({ text: "등록된 첨부가 없습니다." }));
-  }
 
-  children.push(
-    new Paragraph({ text: "출처 및 작성 정보", heading: HeadingLevel.HEADING_1, spacing: { before: 320 } }),
-    ...model.sources.map((source) => new Paragraph({ text: source, bullet: { level: 0 } })),
-    new Paragraph({
-      children: [new TextRun({ text: model.notice, bold: true, color: "344054", font: bodyFont, size: 19 })],
-      spacing: { before: 280 },
-    }),
-  );
+    children.push(new Paragraph({ text: "허가 및 관련 절차", heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 280, after: 100 } }));
+    children.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({ tableHeader: true, children: [tableCell("절차", true), tableCell("관계", true), tableCell("신청", true), tableCell("기존 허가번호", true), tableCell("검토", true)] }),
+        ...model.permits.map((permit) => new TableRow({ children: [
+          tableCell(permit.name), tableCell(permit.relation), tableCell(permit.application), tableCell(permit.existingPermit), tableCell(permit.review),
+        ] })),
+      ],
+    }));
 
+    children.push(new Paragraph({
+      text: "첨부 목록",
+      heading: HeadingLevel.HEADING_1,
+      keepNext: true,
+      pageBreakBefore: ["business-plan", "damage-prevention-plan"].includes(model.templateId),
+      spacing: { before: 280, after: 100 },
+    }));
+    if (model.attachments.length) {
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ tableHeader: true, children: [tableCell("파일명", true), tableCell("역할", true), tableCell("버전", true)] }),
+          ...model.attachments.map((attachment) => new TableRow({ children: [tableCell(attachment.name), tableCell(attachment.role), tableCell(attachment.version)] })),
+        ],
+      }));
+    } else {
+      children.push(new Paragraph({ text: "등록된 첨부가 없습니다." }));
+    }
+
+    children.push(
+      new Paragraph({ text: "서식·데이터 출처", heading: HeadingLevel.HEADING_1, spacing: { before: 160, after: 60 } }),
+      ...model.sources.map((source) => new Paragraph({ text: source, bullet: { level: 0 } })),
+      new Paragraph({
+        children: [new TextRun({ text: model.notice, bold: true, color: "344054", font: bodyFont, size: 18 })],
+        spacing: { before: 60 },
+      }),
+    );
+  });
+
+  const version = models[0].version;
   const document = new Document({
-    creator: model.author,
-    title: model.title,
-    description: model.notice,
+    creator: caseRecord.assigneeName,
+    title: `${caseRecord.title} 제출서류 묶음`,
+    description: "선택한 신청서와 사업계획서 편집본",
+    fonts: [{ name: bodyFont, data: fontData as never, characterSet: CharacterSet.HANGUL }],
     styles: {
-      default: { document: { run: { font: bodyFont, size: 22, color: "0C1C2E" } } },
+      default: { document: { run: { font: bodyFont, size: 20, color: "0C1C2E" } } },
       paragraphStyles: [
-        { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: bodyFont, size: 38, bold: true, color: "000000" } },
-        { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: bodyFont, size: 27, bold: true, color: "000000" }, paragraph: { spacing: { before: 320, after: 160 } } },
+        { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: bodyFont, size: 36, bold: true, color: "000000" } },
+        { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: bodyFont, size: 24, bold: true, color: "000000" }, paragraph: { spacing: { before: 280, after: 120 } } },
       ],
     },
     sections: [{
       properties: {
-        page: { margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 } },
+        page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 900, right: 760, bottom: 900, left: 760 },
+        },
       },
       children,
     }],
   });
   const blob = await Packer.toBlob(document);
-  saveAs(blob, `${fileBaseName(caseRecord.title)}_사업계획서_v${model.version}.docx`);
+  saveAs(blob, `${fileBaseName(caseRecord.title)}_제출서류묶음_v${version}.docx`);
 }
 
-function appendText(parent: HTMLElement, tag: keyof HTMLElementTagNameMap, text: string, className?: string): HTMLElement {
+function appendText(parent: HTMLElement, tag: keyof HTMLElementTagNameMap, value: string, className?: string): HTMLElement {
   const element = document.createElement(tag);
-  element.textContent = text;
+  element.textContent = value;
   if (className) element.className = className;
   parent.append(element);
   return element;
@@ -149,15 +190,46 @@ function appendTable(parent: HTMLElement, headers: string[], rows: string[][]): 
   parent.append(table);
 }
 
-function appendPdfBlock(parent: HTMLElement, build: (block: HTMLElement) => void): void {
+function appendPdfBlock(parent: HTMLElement, build: (block: HTMLElement) => void, className = ""): void {
   const block = document.createElement("section");
-  block.className = "pdf-block";
+  block.className = `pdf-block ${className}`.trim();
   build(block);
   parent.append(block);
 }
 
-function buildPdfElement(caseRecord: CaseRecord): HTMLElement {
-  const model = buildCaseDocumentModel(caseRecord);
+function appendPdfModel(page: HTMLElement, model: CaseDocumentModel, isFirst: boolean): void {
+  appendPdfBlock(page, (block) => {
+    appendText(block, "h1", model.title);
+    appendText(block, "p", model.statusLabel, "pdf-status");
+    appendText(block, "p", `${model.templateVersion} · 문서 v${model.version} · 작성자 ${model.author} · 생성 ${formatSeoulDate(model.createdAt)}`, "pdf-meta");
+  }, isFirst ? "pdf-document-start first" : "pdf-document-start");
+  model.sections.forEach((section) => {
+    appendPdfBlock(page, (block) => {
+      appendText(block, "h2", section.title);
+      appendTable(block, ["항목", "작성 내용"], section.fields.map((field) => [`${field.label}${field.required ? " *" : ""}`, field.value]));
+    });
+  });
+  appendPdfBlock(page, (block) => {
+    appendText(block, "h2", "대상 필지 및 면적");
+    appendTable(block, ["지번·주소", "역할", "대장", "실측", "계획", "도로", "제외", "소유자"], model.parcels.map((parcel) => [parcel.address, parcel.role, parcel.ledgerArea, parcel.surveyedArea, parcel.plannedArea, parcel.roadArea, parcel.excludedArea, parcel.owner]));
+  });
+  appendPdfBlock(page, (block) => {
+    appendText(block, "h2", "허가 및 관련 절차");
+    appendTable(block, ["절차", "관계", "신청", "기존 허가번호", "검토"], model.permits.map((permit) => [permit.name, permit.relation, permit.application, permit.existingPermit, permit.review]));
+  });
+  appendPdfBlock(page, (block) => {
+    appendText(block, "h2", "첨부 목록");
+    if (model.attachments.length) appendTable(block, ["파일명", "역할", "버전"], model.attachments.map((item) => [item.name, item.role, item.version]));
+    else appendText(block, "p", "등록된 첨부가 없습니다.");
+  });
+  appendPdfBlock(page, (block) => {
+    appendText(block, "h2", "서식·데이터 출처");
+    model.sources.forEach((source) => appendText(block, "p", `• ${source}`));
+    appendText(block, "p", model.notice, "pdf-notice");
+  });
+}
+
+function buildPdfElement(caseRecord: CaseRecord, model: CaseDocumentModel): HTMLElement {
   const page = document.createElement("article");
   page.className = "pdf-export-page";
   Object.assign(page.style, {
@@ -169,54 +241,28 @@ function buildPdfElement(caseRecord: CaseRecord): HTMLElement {
     background: "#ffffff",
     color: "#0c1c2e",
     fontFamily: '"Noto Sans KR", sans-serif',
-    fontSize: "14px",
-    lineHeight: "1.65",
+    fontSize: "13px",
+    lineHeight: "1.55",
     zIndex: "-1",
     boxSizing: "border-box",
   });
-  appendPdfBlock(page, (block) => {
-    appendText(block, "h1", model.title);
-    appendText(block, "p", `문서 버전 ${model.version} · 작성자 ${model.author} · 생성 ${formatSeoulDate(model.createdAt)}`, "pdf-meta");
-  });
-  appendPdfBlock(page, (block) => {
-    appendText(block, "h2", "대상 필지");
-    appendTable(block, ["주소", "PNU", "면적", "용도지역"], model.parcels.map((parcel) => [parcel.address, parcel.pnu, parcel.area, parcel.zoning]));
-  });
-  appendPdfBlock(page, (block) => {
-    appendText(block, "h2", "허가 및 관련 절차");
-    appendTable(block, ["절차", "관계", "신청", "검토"], model.permits.map((permit) => [permit.name, permit.relation, permit.application, permit.review]));
-  });
-  model.sections.forEach((section) => {
-    appendPdfBlock(page, (block) => {
-      appendText(block, "h2", section.title);
-      section.paragraphs.forEach((paragraph) => appendText(block, "p", paragraph));
-    });
-  });
-  appendPdfBlock(page, (block) => {
-    appendText(block, "h2", "첨부 목록");
-    if (model.attachments.length) appendTable(block, ["파일명", "역할", "버전"], model.attachments.map((item) => [item.name, item.role, item.version]));
-    else appendText(block, "p", "등록된 첨부가 없습니다.");
-  });
-  appendPdfBlock(page, (block) => {
-    appendText(block, "h2", "출처 및 작성 정보");
-    model.sources.forEach((source) => appendText(block, "p", `• ${source}`));
-    appendText(block, "p", model.notice, "pdf-notice");
-  });
-
+  appendPdfModel(page, model, true);
   const style = document.createElement("style");
   style.textContent = `
-    .pdf-export-page h1 { margin: 0 0 8px; font-size: 30px; color: #000; }
+    .pdf-export-page h1 { margin: 0 0 7px; font-size: 29px; color: #000; text-align: center; }
+    .pdf-export-page .pdf-status { margin: 0; color: #006b63; font-weight: 800; text-align: center; }
     .pdf-export-page .pdf-block { display: flow-root; break-inside: avoid; }
-    .pdf-export-page h2 { margin: 28px 0 12px; font-size: 19px; color: #000; }
-    .pdf-export-page p { margin: 6px 0; }
-    .pdf-export-page .pdf-meta { color: #667085; margin-bottom: 28px; }
-    .pdf-export-page table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; }
-    .pdf-export-page th { background: #004541; color: white; text-align: left; padding: 10px; font-weight: 700; }
-    .pdf-export-page td { border: 1px solid #d9d9d9; padding: 10px; vertical-align: middle; }
+    .pdf-export-page h2 { margin: 24px 0 9px; font-size: 18px; color: #000; }
+    .pdf-export-page p { margin: 5px 0; }
+    .pdf-export-page .pdf-meta { color: #667085; margin: 4px 0 22px; text-align: center; }
+    .pdf-export-page table { width: 100%; border-collapse: collapse; margin: 7px 0 14px; table-layout: fixed; }
+    .pdf-export-page th { background: #004541; color: white; text-align: left; padding: 8px; font-weight: 700; }
+    .pdf-export-page td { border: 1px solid #d9d9d9; padding: 8px; vertical-align: top; overflow-wrap: anywhere; }
     .pdf-export-page tr:nth-child(even) td { background: #f4f8f8; }
-    .pdf-export-page .pdf-notice { margin-top: 24px; font-weight: 700; color: #344054; }
+    .pdf-export-page .pdf-notice { margin-top: 20px; font-weight: 700; color: #344054; }
   `;
   page.append(style);
+  page.dataset.caseTitle = caseRecord.title;
   document.body.append(page);
   return page;
 }
@@ -230,7 +276,7 @@ function paginatePdfElement(element: HTMLElement): number {
     const offsetOnPage = block.offsetTop % pageHeight;
     const remaining = pageHeight - offsetOnPage - pageMargin;
     if (offsetOnPage > pageMargin && block.offsetHeight > remaining && block.offsetHeight < usableHeight) {
-      block.style.marginTop = `${pageHeight - offsetOnPage + pageMargin}px`;
+      block.style.marginTop = `${Number.parseFloat(block.style.marginTop || "0") + pageHeight - offsetOnPage + pageMargin}px`;
     }
   });
   const pageCount = Math.max(1, Math.ceil(element.scrollHeight / pageHeight));
@@ -239,28 +285,32 @@ function paginatePdfElement(element: HTMLElement): number {
 }
 
 export async function exportCasePdf(caseRecord: CaseRecord): Promise<void> {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
-  const element = buildPdfElement(caseRecord);
-  try {
-    await document.fonts.ready;
-    const pageCount = paginatePdfElement(element);
-    const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff", logging: false });
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imageWidth = pageWidth;
-    const imageHeight = (canvas.height * imageWidth) / canvas.width;
-    const image = canvas.toDataURL("image/jpeg", 0.94);
-    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-      if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(image, "JPEG", 0, -pageIndex * pageHeight, imageWidth, imageHeight, undefined, "FAST");
+  const models = buildCaseDocumentModels(caseRecord);
+  if (!models.length) throw new Error("출력에 포함할 문서를 1개 이상 선택해 주세요.");
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  await document.fonts.ready;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  let outputPageIndex = 0;
+
+  for (const model of models) {
+    const element = buildPdfElement(caseRecord, model);
+    try {
+      const pageCount = paginatePdfElement(element);
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff", logging: false });
+      const imageHeight = (canvas.height * pageWidth) / canvas.width;
+      const image = canvas.toDataURL("image/jpeg", 0.94);
+
+      for (let modelPageIndex = 0; modelPageIndex < pageCount; modelPageIndex += 1) {
+        if (outputPageIndex > 0) pdf.addPage();
+        pdf.addImage(image, "JPEG", 0, -modelPageIndex * pageHeight, pageWidth, imageHeight, undefined, "FAST");
+        outputPageIndex += 1;
+      }
+    } finally {
+      element.remove();
     }
-    const model = buildCaseDocumentModel(caseRecord);
-    pdf.save(`${fileBaseName(caseRecord.title)}_사업계획서_v${model.version}.pdf`);
-  } finally {
-    element.remove();
   }
+
+  pdf.save(`${fileBaseName(caseRecord.title)}_제출서류묶음_v${models[0].version}.pdf`);
 }

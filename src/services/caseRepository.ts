@@ -12,6 +12,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { makeDemoCases } from "../data/demo";
+import { normalizeCaseRecord } from "../domain/caseRecord";
 import type { CaseRecord } from "../types";
 import { getFirebaseServices } from "./firebase";
 
@@ -25,7 +26,7 @@ function readLocalCases(): CaseRecord[] {
     return seeded;
   }
   try {
-    return JSON.parse(stored) as CaseRecord[];
+    return (JSON.parse(stored) as CaseRecord[]).map(normalizeCaseRecord);
   } catch {
     const seeded = makeDemoCases();
     localStorage.setItem(localCasesKey, JSON.stringify(seeded));
@@ -39,7 +40,7 @@ function writeLocalCases(cases: CaseRecord[]): void {
 }
 
 function fromFirestore(data: DocumentData, id: string): CaseRecord {
-  return { id, ...data } as CaseRecord;
+  return normalizeCaseRecord({ id, ...data } as CaseRecord);
 }
 
 export function subscribeCases(
@@ -69,10 +70,11 @@ export function subscribeCases(
 
 export async function saveCase(caseRecord: CaseRecord, isDemo: boolean): Promise<CaseRecord> {
   const services = getFirebaseServices();
+  const normalized = normalizeCaseRecord(caseRecord);
   const nextRecord = {
-    ...caseRecord,
+    ...normalized,
     updatedAt: new Date().toISOString(),
-    version: caseRecord.version + 1,
+    version: normalized.version + 1,
   };
 
   if (isDemo || !services) {
@@ -117,19 +119,19 @@ export async function saveCase(caseRecord: CaseRecord, isDemo: boolean): Promise
 
 export async function loadCaseSubcollections(caseRecord: CaseRecord): Promise<CaseRecord> {
   const services = getFirebaseServices();
-  if (!services) return caseRecord;
+  if (!services) return normalizeCaseRecord(caseRecord);
   const caseRef = doc(services.db, "organizations", caseRecord.organizationId, "cases", caseRecord.id);
   const [parcels, attachments, documents] = await Promise.all([
     getDocs(collection(caseRef, "parcels")),
     getDocs(collection(caseRef, "attachments")),
     getDocs(collection(caseRef, "documents")),
   ]);
-  return {
+  return normalizeCaseRecord({
     ...caseRecord,
     parcels: parcels.docs.map((item) => item.data() as CaseRecord["parcels"][number]),
     attachments: attachments.docs.map((item) => item.data() as CaseRecord["attachments"][number]),
     documentVersions: documents.docs.map((item) => item.data() as CaseRecord["documentVersions"][number]),
-  };
+  });
 }
 
 export async function writeCaseDraft(caseRecord: CaseRecord, isDemo: boolean): Promise<void> {

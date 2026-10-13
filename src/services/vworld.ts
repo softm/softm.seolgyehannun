@@ -226,6 +226,7 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
   const reverseAddress = hint?.address
     ? { address: hint.address, roadAddress: hint.roadAddress }
     : await reverseGeocodeVWorld(longitude, latitude);
+  const ledgerAreaM2 = Number(normalizedProperties.parea ?? normalizedProperties.area ?? 0) || undefined;
 
   return {
     id: pnu,
@@ -234,7 +235,11 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
     roadAddress: reverseAddress.roadAddress,
     lotNumber: String(normalizedProperties.jibun ?? ""),
     category: String(normalizedProperties.jimok ?? normalizedProperties.jimok_nm ?? ""),
-    ledgerAreaM2: Number(normalizedProperties.parea ?? normalizedProperties.area ?? 0) || undefined,
+    ledgerAreaM2,
+    role: "project-site",
+    ownerNames: [],
+    sourceLedgerAreaM2: ledgerAreaM2,
+    userModifiedFields: [],
     zoning: [],
     longitude,
     latitude,

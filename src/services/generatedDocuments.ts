@@ -1,4 +1,6 @@
 import { httpsCallable } from "firebase/functions";
+import { buildCaseDocumentModels, type CaseDocumentModel } from "../domain/documentModel";
+import type { CaseRecord } from "../types";
 import { apiErrorMessage, apiUrl, authorizedApiHeaders } from "./api";
 import { getFirebaseServices } from "./firebase";
 
@@ -10,16 +12,17 @@ export interface GeneratedDocumentBundle {
 }
 
 export async function generateVersionedCaseDocuments(
-  organizationId: string,
-  caseId: string,
+  caseRecord: CaseRecord,
 ): Promise<GeneratedDocumentBundle> {
   const services = getFirebaseServices();
   if (!services) throw new Error("Firebase가 설정되지 않았습니다.");
   const generate = httpsCallable<
-    { organizationId: string; caseId: string },
+    { organizationId: string; caseId: string; documents: CaseDocumentModel[] },
     GeneratedDocumentBundle
   >(services.functions, "generateCaseDocuments");
-  return (await generate({ organizationId, caseId })).data;
+  const documents = buildCaseDocumentModels(caseRecord);
+  if (!documents.length) throw new Error("출력에 포함할 문서를 1개 이상 선택해 주세요.");
+  return (await generate({ organizationId: caseRecord.organizationId, caseId: caseRecord.id, documents })).data;
 }
 
 export async function openPrivateDocument(storagePath: string): Promise<void> {
@@ -46,11 +49,10 @@ export async function openPrivateDocument(storagePath: string): Promise<void> {
 }
 
 export async function generateAndOpenCaseDocument(
-  organizationId: string,
-  caseId: string,
+  caseRecord: CaseRecord,
   type: "pdf" | "docx",
 ): Promise<GeneratedDocumentBundle> {
-  const bundle = await generateVersionedCaseDocuments(organizationId, caseId);
+  const bundle = await generateVersionedCaseDocuments(caseRecord);
   await openPrivateDocument(type === "pdf" ? bundle.pdfPath : bundle.docxPath);
   return bundle;
 }
