@@ -59,6 +59,19 @@ describe("인허가 문서 자동작성", () => {
     expect(models[0].parcels[0].plannedArea).toBe("1,820 ㎡");
   });
 
+  it("전체 묶음에서 제외한 문서도 개별 다운로드 모델로 만든다", () => {
+    const caseRecord = demoCase();
+    caseRecord.documentDrafts = ensureDocumentDrafts(caseRecord).map((draft) => ({
+      ...draft,
+      selected: draft.templateId !== "damage-prevention-plan",
+    }));
+
+    const [model] = buildCaseDocumentModels(caseRecord, ["damage-prevention-plan"]);
+
+    expect(model.templateId).toBe("damage-prevention-plan");
+    expect(model.sections.flatMap((section) => section.fields).every((field) => Boolean(field.id))).toBe(true);
+  });
+
   it("변경허가에는 기존 허가번호와 변경내용을 요구한다", () => {
     const caseRecord = demoCase();
     caseRecord.permits[0] = { ...caseRecord.permits[0], applicationKind: "change", existingPermitNumber: "", changeSummary: "" };
