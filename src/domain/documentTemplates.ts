@@ -2,6 +2,20 @@ import type { CaseRecord, DocumentDraft, ParcelSnapshot, PartyRecord } from "../
 
 export type DocumentFieldKind = "text" | "textarea" | "date" | "number" | "choice";
 export type DocumentTemplateStatus = "official-reference" | "office-template";
+export type DocumentDefaultContent = string | ((caseRecord: CaseRecord) => string);
+export type OfficialSourceFormat = "hwp" | "hwpx" | "pdf";
+export type GeneratedFormatFidelity = "official-layout" | "official-field-map" | "office-template";
+
+export interface OfficialFormSource {
+  regulationName: string;
+  formNumber: string;
+  revisionDate: string;
+  effectiveDate: string;
+  sourceUrl: string;
+  sourceHashSha256?: string;
+  availableFormats: OfficialSourceFormat[];
+  formatUrls?: Partial<Record<OfficialSourceFormat, string>>;
+}
 
 export interface DocumentTemplateField {
   id: string;
@@ -9,6 +23,7 @@ export interface DocumentTemplateField {
   group: string;
   kind: DocumentFieldKind;
   sourceKey?: string;
+  defaultContent?: DocumentDefaultContent;
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
@@ -24,6 +39,8 @@ export interface DocumentTemplateDefinition {
   authority: string;
   versionLabel: string;
   sourceUrl?: string;
+  officialSource?: OfficialFormSource;
+  generatedFormatFidelity?: Partial<Record<"pdf" | "docx", GeneratedFormatFidelity>>;
   description: string;
   fields: DocumentTemplateField[];
 }
@@ -57,6 +74,18 @@ const long = (id: string, label: string, group: string, sourceKey?: string, requ
   placeholder,
 });
 
+const longWithDefault = (
+  id: string,
+  label: string,
+  group: string,
+  sourceKey: string | undefined,
+  defaultContent: DocumentDefaultContent,
+  required = false,
+): DocumentTemplateField => ({
+  ...long(id, label, group, sourceKey, required),
+  defaultContent,
+});
+
 const date = (id: string, label: string, group: string, sourceKey?: string, required = false): DocumentTemplateField => ({
   id,
   label,
@@ -74,6 +103,47 @@ const number = (id: string, label: string, group: string, sourceKey?: string, re
   sourceKey,
   required,
 });
+
+const choice = (
+  id: string,
+  label: string,
+  group: string,
+  options: Array<{ value: string; label: string }>,
+  sourceKey?: string,
+  required = false,
+): DocumentTemplateField => ({ id, label, group, kind: "choice", sourceKey, required, options });
+
+const businessPlanDefaultContent = {
+  overview: (caseRecord: CaseRecord) => {
+    const addresses = caseRecord.parcels.map((parcel) => parcel.address).filter(Boolean).join(", ") || "사업대상지";
+    return `대상지는 ${addresses} 일원으로, 지목·용도지역·진입여건과 주변 토지이용 현황을 확인하여 사업계획에 반영합니다. 세부 현황은 현황측량도 및 토지이용계획확인서에 따릅니다.`;
+  },
+  fundingPlan: "사업에 필요한 공사비와 부대비용은 신청인 자체 자금으로 조달하며, 공정별 집행계획에 따라 단계적으로 투입합니다. 세부 금액은 공사내역서에 따릅니다.",
+  constructionSummary: "사업부지 정지, 진입로 및 배수시설 설치 등 필요한 공정을 설계도서에 따라 순차적으로 시행합니다. 세부 공법과 물량은 현장 여건 및 관계기관 협의 결과에 따라 조정합니다.",
+  roadPlan: "사업지 진입은 기존 도로 및 계획 진입로를 이용하고, 차량 통행에 지장이 없도록 폭원·접속부·회차 공간을 확보합니다. 세부 구조는 관계기관 협의 및 설계도서에 따라 시공합니다.",
+  drainagePlan: "부지 내 우수는 측구와 집수정을 통해 계획 배수로로 유도하고, 토사 유출 방지를 위해 침사지 등 임시 배수시설을 설치합니다. 방류 위치와 규모는 현장 여건 및 관계기관 협의 결과에 따릅니다.",
+  preventionPlan: "공사 중 토사 유출·비산먼지·소음·교통 불편을 줄이기 위해 가설울타리, 살수, 세륜 및 안전유도 조치를 시행하고 수시로 현장을 점검합니다.",
+  waterSupplyPlan: "공사 및 운영에 필요한 용수는 적법한 급수시설을 이용하며, 공급 방법과 사용량은 시설계획 및 관계기관 협의 결과에 따라 확정합니다.",
+  earthworkPlan: "절토와 성토량의 균형을 우선 검토하고, 발생 토사는 현장 내 적정 활용하거나 허가된 반출처로 운반합니다. 운반 중 비산과 유출이 없도록 덮개 및 세륜 조치를 시행합니다.",
+  airReview: "공사 중 살수, 방진망, 적재물 덮개 및 세륜시설을 운영합니다. 대기환경보전법상 신고 대상 여부를 검토하고, 대상인 경우 착공 전에 필요한 절차를 이행합니다.",
+  waterReview: "우수와 오수를 분리 처리하고 오탁수의 외부 유출을 방지합니다. 물환경보전법상 신고 대상 여부를 검토하고, 대상인 경우 필요한 시설과 절차를 반영합니다.",
+  nearbyImpactPlan: "인접 토지와 시설물에 미치는 영향을 최소화하도록 경계부·배수·소음·진동 상태를 점검하고, 이상 발생 시 즉시 보강 및 복구 조치를 시행합니다.",
+  vegetationPlan: "공사 과정에서 발생하는 수목과 부산물은 종류별로 분리하여 적법하게 반출·처리하며, 재활용 가능한 자재는 현장 여건에 따라 우선 활용합니다.",
+  noiseDustPlan: "소음이 큰 작업은 주간에 실시하고 장비를 정기 점검합니다. 비산먼지 발생 구간에는 살수와 방진망을 적용하고 적재 차량에는 덮개를 설치합니다.",
+  wastewaterPlan: "공사장 오수와 세륜수는 별도로 집수하여 적정 처리하고, 처리되지 않은 오수가 외부로 유출되지 않도록 관리합니다.",
+  trafficPlan: "공사차량 진출입 시 안전요원을 배치하고 운행 시간과 동선을 관리합니다. 도로 오염 발생 시 즉시 청소하여 통행 불편과 안전사고를 예방합니다.",
+  wastePlan: "건설폐기물은 종류별로 분리 보관하고 허가받은 처리업체를 통해 적법하게 처리합니다. 반출 내역과 인계서류는 준공 시까지 보관합니다.",
+  postManagementPlan: "준공 후 배수시설, 사면, 포장 및 안전시설 상태를 정기적으로 확인하고, 침하·유실·파손 또는 민원 발생 시 신속히 보수·복구합니다.",
+} satisfies Record<string, DocumentDefaultContent>;
+
+const damagePreventionDefaultContent = {
+  siteSafety: "공사구역에 가설울타리와 안전표지를 설치하고 출입을 통제합니다. 작업 전 안전교육과 장비 점검을 실시하고 현장책임자가 작업 상태를 수시로 확인합니다.",
+  soilRunoff: "우기 전에 임시 배수로와 침사지를 설치하고 노출 사면은 방수포·식생매트 등으로 보호합니다. 유출 토사는 즉시 제거하고 훼손 구간을 복구합니다.",
+  dust: "건조한 날에는 작업구간과 운반로에 살수하고, 적재 차량에는 덮개를 설치합니다. 차량 출입구에는 세륜시설을 운영하여 도로 오염과 비산먼지를 방지합니다.",
+  traffic: "공사차량 진출입구에 안전요원을 배치하고 운행 시간과 동선을 관리합니다. 통행량이 많은 시간대 작업을 조정하고 도로 오염 시 즉시 청소합니다.",
+  drainage: "우수와 오수를 분리하여 처리하고, 우수는 측구·집수정·침사지 등을 거쳐 계획 배수로로 유도합니다. 오탁수와 세륜수는 외부로 직접 유출되지 않도록 관리합니다.",
+  additional: "공사로 인한 민원이나 주변 피해가 확인되면 즉시 원인을 조사하고 필요한 보강·복구 조치를 시행합니다. 준공 후에도 배수시설과 사면 상태를 점검합니다.",
+} satisfies Record<string, DocumentDefaultContent>;
 
 export const documentTemplates: DocumentTemplateDefinition[] = [
   {
@@ -199,12 +269,12 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     versionLabel: "예시 서식 1.0",
     description: "사업 개요부터 배수·환경·폐기물·사후관리까지 사건별 설명을 편집합니다.",
     fields: [
-      long("overview", "1. 위치 및 현황", "사업 개요", "plan.siteCondition", true),
+      longWithDefault("overview", "1. 위치 및 현황", "사업 개요", "plan.siteCondition", businessPlanDefaultContent.overview, true),
       long("purpose", "2. 사업 목적", "사업 개요", "case.projectPurpose", true),
       text("implementer", "3. 사업 시행자", "사업 개요", "applicant.name", true),
       text("projectPeriod", "4. 사업 시행 기간", "사업 개요", "case.projectPeriod", true),
-      long("fundingPlan", "5. 자금 소요 및 조달 계획", "사업 개요", "plan.fundingPlan"),
-      long("constructionSummary", "6~8. 토지조서·공사개요·사업개요", "계획", "case.constructionSummary", true),
+      longWithDefault("fundingPlan", "5. 자금 소요 및 조달 계획", "사업 개요", "plan.fundingPlan", businessPlanDefaultContent.fundingPlan),
+      longWithDefault("constructionSummary", "6~8. 토지조서·공사개요·사업개요", "계획", "case.constructionSummary", businessPlanDefaultContent.constructionSummary, true),
       text("buildingUse", "건축물 용도", "건축 개요", "building.useCategory"),
       text("legalBuildingUse", "법령상 건축물 용도", "건축 개요", "building.legalUseCategory"),
       number("buildingArea", "건축면적(㎡)", "건축 개요", "building.buildingAreaM2"),
@@ -213,20 +283,20 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
       number("coverageRatio", "건폐율(%)", "건축 개요", "building.buildingCoverageRatio"),
       number("floorAreaRatio", "용적률(%)", "건축 개요", "building.floorAreaRatio"),
       text("buildingStructure", "구조", "건축 개요", "building.structure"),
-      long("roadPlan", "9. 도로 계획", "기반시설", "plan.roadPlan"),
-      long("drainagePlan", "9. 배수 계획", "기반시설", "plan.drainagePlan"),
-      long("preventionPlan", "10. 피해 방지 계획", "안전·환경", "case.environmentPlan"),
-      long("waterSupplyPlan", "11. 급수 계획", "기반시설", "plan.waterSupplyPlan"),
-      long("earthworkPlan", "12. 토사 처리 계획", "시공", "plan.earthworkPlan"),
-      long("airReview", "13. 대기환경보전법 관련 사항", "법령 검토"),
-      long("waterReview", "14. 물환경보전법 관련 사항", "법령 검토"),
-      long("nearbyImpactPlan", "15. 인근에 미치는 영향", "안전·환경", "plan.nearbyImpactPlan"),
-      long("vegetationPlan", "16. 부산물·입목 처리 계획", "안전·환경", "plan.vegetationPlan"),
-      long("noiseDustPlan", "17. 소음·분진 방지 계획", "안전·환경", "plan.noiseDustPlan"),
-      long("wastewaterPlan", "17. 오폐수·세륜 계획", "안전·환경", "plan.wastewaterPlan"),
-      long("trafficPlan", "17. 교통 계획", "안전·환경", "plan.trafficPlan"),
-      long("wastePlan", "18. 폐기물 처리 대책", "안전·환경", "plan.wastePlan"),
-      long("postManagementPlan", "19. 사후 관리", "관리", "plan.postManagementPlan", true),
+      longWithDefault("roadPlan", "9. 도로 계획", "기반시설", "plan.roadPlan", businessPlanDefaultContent.roadPlan),
+      longWithDefault("drainagePlan", "9. 배수 계획", "기반시설", "plan.drainagePlan", businessPlanDefaultContent.drainagePlan),
+      longWithDefault("preventionPlan", "10. 피해 방지 계획", "안전·환경", "case.environmentPlan", businessPlanDefaultContent.preventionPlan),
+      longWithDefault("waterSupplyPlan", "11. 급수 계획", "기반시설", "plan.waterSupplyPlan", businessPlanDefaultContent.waterSupplyPlan),
+      longWithDefault("earthworkPlan", "12. 토사 처리 계획", "시공", "plan.earthworkPlan", businessPlanDefaultContent.earthworkPlan),
+      longWithDefault("airReview", "13. 대기환경보전법 관련 사항", "법령 검토", undefined, businessPlanDefaultContent.airReview),
+      longWithDefault("waterReview", "14. 물환경보전법 관련 사항", "법령 검토", undefined, businessPlanDefaultContent.waterReview),
+      longWithDefault("nearbyImpactPlan", "15. 인근에 미치는 영향", "안전·환경", "plan.nearbyImpactPlan", businessPlanDefaultContent.nearbyImpactPlan),
+      longWithDefault("vegetationPlan", "16. 부산물·입목 처리 계획", "안전·환경", "plan.vegetationPlan", businessPlanDefaultContent.vegetationPlan),
+      longWithDefault("noiseDustPlan", "17. 소음·분진 방지 계획", "안전·환경", "plan.noiseDustPlan", businessPlanDefaultContent.noiseDustPlan),
+      longWithDefault("wastewaterPlan", "17. 오폐수·세륜 계획", "안전·환경", "plan.wastewaterPlan", businessPlanDefaultContent.wastewaterPlan),
+      longWithDefault("trafficPlan", "17. 교통 계획", "안전·환경", "plan.trafficPlan", businessPlanDefaultContent.trafficPlan),
+      longWithDefault("wastePlan", "18. 폐기물 처리 대책", "안전·환경", "plan.wastePlan", businessPlanDefaultContent.wastePlan),
+      longWithDefault("postManagementPlan", "19. 사후 관리", "관리", "plan.postManagementPlan", businessPlanDefaultContent.postManagementPlan, true),
     ],
   },
   {
@@ -243,12 +313,12 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
       text("siteAddress", "사업장 위치", "표지", "parcel.addresses", true),
       text("purpose", "전용 목적", "표지", "case.projectPurpose", true),
       number("area", "사업장 면적(㎡)", "표지", "parcel.totalApplicationArea", true),
-      long("siteSafety", "가설울타리·안전표지·현장관리", "피해 방지", "case.safetyPlan", true),
-      long("soilRunoff", "토사 유출 방지", "피해 방지", "plan.earthworkPlan", true),
-      long("dust", "비산먼지·세륜 대책", "피해 방지", "plan.noiseDustPlan", true),
-      long("traffic", "공사차량·교통 대책", "피해 방지", "plan.trafficPlan", true),
-      long("drainage", "우·오수 처리", "피해 방지", "plan.drainagePlan", true),
-      long("additional", "추가 피해방지 및 복구 약속", "피해 방지", "plan.postManagementPlan"),
+      longWithDefault("siteSafety", "가설울타리·안전표지·현장관리", "피해 방지", "case.safetyPlan", damagePreventionDefaultContent.siteSafety, true),
+      longWithDefault("soilRunoff", "토사 유출 방지", "피해 방지", "plan.earthworkPlan", damagePreventionDefaultContent.soilRunoff, true),
+      longWithDefault("dust", "비산먼지·세륜 대책", "피해 방지", "plan.noiseDustPlan", damagePreventionDefaultContent.dust, true),
+      longWithDefault("traffic", "공사차량·교통 대책", "피해 방지", "plan.trafficPlan", damagePreventionDefaultContent.traffic, true),
+      longWithDefault("drainage", "우·오수 처리", "피해 방지", "plan.drainagePlan", damagePreventionDefaultContent.drainage, true),
+      longWithDefault("additional", "추가 피해방지 및 복구 약속", "피해 방지", "plan.postManagementPlan", damagePreventionDefaultContent.additional),
     ],
   },
 ];
@@ -381,7 +451,11 @@ export function ensureDocumentDrafts(caseRecord: CaseRecord): DocumentDraft[] {
 export function documentFieldValue(caseRecord: CaseRecord, templateId: string, field: DocumentTemplateField): string {
   const draft = caseRecord.documentDrafts.find((item) => item.templateId === templateId);
   if (draft && Object.prototype.hasOwnProperty.call(draft.overrides, field.id)) return draft.overrides[field.id] ?? "";
-  return resolveDocumentSource(caseRecord, field.sourceKey);
+  const sourceValue = resolveDocumentSource(caseRecord, field.sourceKey);
+  if (sourceValue.trim()) return sourceValue;
+  return typeof field.defaultContent === "function"
+    ? field.defaultContent(caseRecord)
+    : field.defaultContent ?? "";
 }
 
 export function updateDocumentDraft(
