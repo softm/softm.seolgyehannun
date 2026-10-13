@@ -96,15 +96,20 @@ export async function saveCase(caseRecord: CaseRecord, isDemo: boolean): Promise
     transaction.set(caseRef, nextRecord);
   });
 
+  const [storedParcels, storedAttachments] = await Promise.all([
+    getDocs(collection(caseRef, "parcels")),
+    getDocs(collection(caseRef, "attachments")),
+  ]);
   const batch = writeBatch(services.db);
+  const parcelIds = new Set(nextRecord.parcels.map((parcel) => parcel.id));
+  const attachmentIds = new Set(nextRecord.attachments.map((attachment) => attachment.id));
+  storedParcels.docs.filter((item) => !parcelIds.has(item.id)).forEach((item) => batch.delete(item.ref));
+  storedAttachments.docs.filter((item) => !attachmentIds.has(item.id)).forEach((item) => batch.delete(item.ref));
   nextRecord.parcels.forEach((parcel) => {
     batch.set(doc(caseRef, "parcels", parcel.id), parcel);
   });
   nextRecord.attachments.forEach((attachment) => {
     batch.set(doc(caseRef, "attachments", attachment.id), attachment);
-  });
-  nextRecord.documentVersions.forEach((documentRecord) => {
-    batch.set(doc(caseRef, "documents", documentRecord.id), documentRecord);
   });
   await batch.commit();
   return nextRecord;

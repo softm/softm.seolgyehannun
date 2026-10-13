@@ -1,4 +1,6 @@
+import { getToken } from "firebase/app-check";
 import type { ReceiptRecord } from "../types";
+import { firebaseConfigured, getFirebaseServices } from "./firebase";
 
 export interface ReceiptLookupResult {
   mode: "sample" | "connected";
@@ -11,6 +13,20 @@ export interface ReceiptLookupResult {
 
 export interface ReceiptLookupProvider {
   lookup(receiptNumber: string, jurisdictionCode: string): Promise<ReceiptLookupResult>;
+}
+
+const apiBase = import.meta.env.VITE_API_BASE || "/api";
+
+async function apiHeaders(): Promise<HeadersInit> {
+  const services = getFirebaseServices();
+  if (!services?.auth.currentUser) throw new Error("로그인이 필요합니다.");
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${await services.auth.currentUser.getIdToken()}`,
+  };
+  if (services.appCheck) {
+    headers["X-Firebase-AppCheck"] = (await getToken(services.appCheck, false)).token;
+  }
+  return headers;
 }
 
 export class SampleReceiptLookupProvider implements ReceiptLookupProvider {
@@ -36,6 +52,25 @@ export class SampleReceiptLookupProvider implements ReceiptLookupProvider {
       message: "샘플 응답입니다. 실제 기관 처리 상태가 아닙니다.",
     };
   }
+}
+
+export class FirebaseReceiptLookupProvider implements ReceiptLookupProvider {
+  async lookup(receiptNumber: string, jurisdictionCode: string): Promise<ReceiptLookupResult> {
+    const url = new URL(`${apiBase}/receipts/sample`, window.location.origin);
+    url.searchParams.set("receiptNumber", receiptNumber.trim());
+    url.searchParams.set("jurisdictionCode", jurisdictionCode);
+    const response = await fetch(url, { headers: await apiHeaders() });
+    if (!response.ok) throw new Error(`접수 조회 연결 오류 (${response.status})`);
+    const result = await response.json() as Omit<ReceiptLookupResult, "supported">;
+    return {
+      ...result,
+      supported: result.status === "found",
+    };
+  }
+}
+
+export function createReceiptLookupProvider(): ReceiptLookupProvider {
+  return firebaseConfigured ? new FirebaseReceiptLookupProvider() : new SampleReceiptLookupProvider();
 }
 
 export function manualReceipt(receiptNumber: string, agency: string, permitIds: string[]): ReceiptRecord {
