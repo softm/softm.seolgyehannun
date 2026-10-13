@@ -302,6 +302,12 @@ export interface OrganizationSettings {
   trustedDeviceCacheEnabled: boolean;
 }
 
+export interface OrganizationWorkspace {
+  id: string;
+  name: string;
+  role: OrganizationRole;
+}
+
 export interface AppUser {
   uid: string;
   displayName: string;
@@ -310,6 +316,7 @@ export interface AppUser {
   organizationName: string;
   role: OrganizationRole;
   isDemo: boolean;
+  organizations?: OrganizationWorkspace[];
 }
 
 export interface AuditEvent {

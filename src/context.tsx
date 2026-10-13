@@ -17,6 +17,7 @@ import {
   signInWithEmail,
   signInWithGoogle,
   startDemoSession,
+  switchCurrentOrganization,
 } from "./services/auth";
 import { saveCase, subscribeCases } from "./services/caseRepository";
 
@@ -29,6 +30,7 @@ interface AuthContextValue {
   startDemo: () => void;
   createOrganization: (name: string) => Promise<void>;
   refreshUser: () => Promise<void>;
+  switchOrganization: (organizationId: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     startDemo: () => setUser(startDemoSession()),
     createOrganization: async (name) => setUser(await bootstrapUserOrganization(name)),
     refreshUser: async () => setUser(await reloadCurrentUser()),
+    switchOrganization: async (organizationId) => setUser(await switchCurrentOrganization(organizationId)),
     logout: async () => {
       await endSession();
       setUser(null);
