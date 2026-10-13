@@ -21,6 +21,7 @@ import {
   type InAppNotification,
 } from "../services/notificationRepository";
 import { Brand } from "./Brand";
+import { OrganizationSwitcher } from "./OrganizationSwitcher";
 
 const navigation = [
   { to: "/app", end: true, label: "대시보드", icon: LayoutDashboard },
@@ -103,11 +104,7 @@ export function AppLayout() {
           <Brand compact to="/app" />
           <button type="button" className="icon-button sidebar-close" onClick={() => setMobileNavOpen(false)} aria-label="메뉴 닫기"><X size={20} /></button>
         </div>
-        <div className="organization-switcher">
-          <span className="organization-icon">한</span>
-          <div><strong>{user?.organizationName}</strong><small>{user?.isDemo ? "샘플 워크스페이스" : "조직 워크스페이스"}</small></div>
-          <ChevronDown size={16} />
-        </div>
+        <OrganizationSwitcher />
         <nav className="app-navigation" aria-label="업무 앱 메뉴">
           <small>업무 공간</small>
           {navigation.map(({ to, label, icon: Icon, end }) => (
