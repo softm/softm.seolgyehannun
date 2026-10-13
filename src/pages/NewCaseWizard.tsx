@@ -174,7 +174,7 @@ export function NewCaseWizard() {
   }, [draftKey, editStartStep, existingCase, user]);
   const [step, setStep] = useState(initialDraft?.step ?? 1);
   const [caseRecord, setCaseRecord] = useState<CaseRecord>(initialDraft?.caseRecord ?? createEmptyCase("", "", ""));
-  const [editReady, setEditReady] = useState(!isEditing || initialDraft?.caseRecord.id === caseId);
+  const [editReady, setEditReady] = useState(!isEditing);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "failed">("saved");
   const [errors, setErrors] = useState<string[]>([]);
   const [errorToast, setErrorToast] = useState<string[]>([]);
@@ -190,10 +190,15 @@ export function NewCaseWizard() {
 
   useEffect(() => {
     if (!caseId || editReady || !existingCase) return;
-    setCaseRecord(normalizeCaseRecord(existingCase));
-    setStep(editStartStep);
+    const latestCase = normalizeCaseRecord(existingCase);
+    const canRestoreDraft = caseRecord.id === caseId && caseRecord.version === latestCase.version;
+    if (!canRestoreDraft) {
+      sessionStorage.removeItem(draftKey);
+      setCaseRecord(latestCase);
+      setStep(editStartStep);
+    }
     setEditReady(true);
-  }, [caseId, editReady, editStartStep, existingCase]);
+  }, [caseId, caseRecord.id, caseRecord.version, draftKey, editReady, editStartStep, existingCase]);
 
   useEffect(() => {
     if (!user?.organizationId) return;
@@ -215,7 +220,7 @@ export function NewCaseWizard() {
   );
 
   useEffect(() => {
-    if (!draftKey) return;
+    if (!draftKey || (isEditing && !editReady)) return;
     setSaveState("saving");
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
@@ -227,7 +232,7 @@ export function NewCaseWizard() {
       }
     }, 450);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
-  }, [caseRecord, draftKey, step]);
+  }, [caseRecord, draftKey, editReady, isEditing, step]);
 
   function patchCase(patch: Partial<CaseRecord>) {
     setCaseRecord((current) => ({ ...current, ...patch, updatedAt: new Date().toISOString() }));
