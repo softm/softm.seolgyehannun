@@ -45,7 +45,7 @@ import { formatSeoulDate } from "../domain/date";
 import { validateAttachment } from "../domain/files";
 import { sampleParcels } from "../data/demo";
 import { regionProfileFor } from "../data/regionProfiles";
-import { searchVWorld, lookupParcel, type VWorldSearchResult } from "../services/vworld";
+import { reverseGeocodeVWorld, searchVWorld, lookupParcel, type VWorldSearchResult } from "../services/vworld";
 import { createReceiptLookupProvider, manualReceipt, type ReceiptLookupResult } from "../services/receipt";
 import { uploadCaseAttachment } from "../services/storage";
 import { exportCaseDocx, exportCasePdf } from "../services/documentExport";
@@ -402,21 +402,35 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
         const longitude = coords.longitude;
         const latitude = coords.latitude;
         setMapFocus({ longitude, latitude, requestId: Date.now() });
-        void lookupParcel(longitude, latitude)
-          .then((parcel) => {
-            setQuery(parcel.address);
-            setResults([{
-              id: `current-${parcel.pnu}`,
-              title: parcel.address,
-              address: parcel.address,
-              roadAddress: parcel.roadAddress ?? "",
-              pnu: parcel.pnu,
+        void reverseGeocodeVWorld(longitude, latitude)
+          .then(async (reverseAddress) => {
+            setQuery(reverseAddress.address);
+            const locationHint: VWorldSearchResult = {
+              id: `current-${longitude}-${latitude}`,
+              title: reverseAddress.address,
+              address: reverseAddress.address,
+              roadAddress: reverseAddress.roadAddress,
+              pnu: "",
               longitude,
               latitude,
               category: "parcel",
-            }]);
+            };
+            const [directParcel, addressMatches] = await Promise.allSettled([
+              lookupParcel(longitude, latitude, locationHint),
+              searchVWorld(reverseAddress.address),
+            ]);
+            const directResult = directParcel.status === "fulfilled" ? [{
+              ...locationHint,
+              id: `current-${directParcel.value.pnu}`,
+              pnu: directParcel.value.pnu,
+            }] : [];
+            const searchResults = addressMatches.status === "fulfilled" ? addressMatches.value : [];
+            const nextResults = directResult.length ? directResult : searchResults;
+            setResults(nextResults);
             const accuracy = Math.round(Number(coords.accuracy) || 0);
-            setMessage(`현재 위치${accuracy ? ` 약 ±${accuracy}m` : ""}의 주소를 찾았습니다. 아래 결과를 눌러 필지를 선택하세요. 위치 좌표는 선택 전까지 저장하지 않습니다.`);
+            setMessage(nextResults.length
+              ? `현재 위치${accuracy ? ` 약 ±${accuracy}m` : ""}의 주소를 찾았습니다. 아래 결과를 눌러 필지를 선택하세요. 위치 좌표는 선택 전까지 저장하지 않습니다.`
+              : `현재 위치 주소는 '${reverseAddress.address}'입니다. PNU는 자동 확인되지 않아 지적도에서 해당 필지를 눌러 선택해 주세요.`);
           })
           .catch((reason) => {
             setMessage(reason instanceof Error ? reason.message : "현재 위치 주변 주소를 찾지 못했습니다.");
