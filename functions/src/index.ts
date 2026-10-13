@@ -8,7 +8,7 @@ import { getAppCheck } from "firebase-admin/app-check";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import PDFDocument from "pdfkit";
 import { defineBoolean, defineSecret, defineString } from "firebase-functions/params";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -545,6 +545,63 @@ function renderDevelopmentApplicationPdf(pdf: PDFKit.PDFDocument, document: Docu
   pdf.image(pdfTemplatePath("development-application-page-2.png"), 0, 0, { width: pdf.page.width, height: pdf.page.height });
 }
 
+function renderForestApplicationPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot): void {
+  addPdfPage(pdf);
+  pdf.image(pdfTemplatePath("forest-application-page-1.png"), 0, 0, { width: pdf.page.width, height: pdf.page.height });
+  const kind = documentField(document, "applicationKind");
+  if (kind === "new") {
+    drawFieldAt(pdf, "✓", 41, 2.35, 3, { fontSize: 10, align: "center" });
+    drawFieldAt(pdf, "✓", 35.3, 65.45, 2.5, { fontSize: 9, align: "center" });
+  }
+  if (kind === "change") {
+    drawFieldAt(pdf, "✓", 41, 4.75, 3, { fontSize: 10, align: "center" });
+    drawFieldAt(pdf, "✓", 42.8, 65.45, 2.5, { fontSize: 9, align: "center" });
+  }
+
+  [
+    ["applicantName", 21.3, 13.3, 44], ["registrationNumber", 67, 13.3, 21],
+    ["applicantAddress", 21.3, 16.25, 44], ["applicantPhone", 67, 16.25, 21],
+    ["forestRightRelation", 21.3, 19.45, 67], ["ownerName", 21.3, 23.15, 44],
+    ["ownerBirthDate", 67, 23.15, 21], ["ownerAddress", 21.3, 26.15, 44],
+    ["ownerPhone", 67, 26.15, 21],
+  ].forEach(([id, left, top, width]) => drawFieldAt(pdf, documentField(document, String(id)), Number(left), Number(top), Number(width), { fontSize: 6.7, align: "center" }));
+
+  [34.55, 37.35, 39.85].forEach((top, index) => {
+    const row = index + 1;
+    [
+      [`forestParcel${row}Address`, 21, 16], [`forestParcel${row}LotNumber`, 37.6, 8.7],
+      [`forestParcel${row}Category`, 47.2, 8.4], [`forestParcel${row}AreaTotalM2`, 56.4, 8.6],
+      [`forestParcel${row}ForestryAreaM2`, 65.5, 8.1], [`forestParcel${row}PublicAreaM2`, 74.2, 7.6],
+      [`forestParcel${row}SemiConservationAreaM2`, 82.2, 7.5],
+    ].forEach(([id, left, width]) => drawFieldAt(pdf, documentField(document, String(id)), Number(left), top, Number(width), { fontSize: 5.9, align: "center" }));
+  });
+
+  [
+    ["fellSpecies", 21.4, 6.9], ["fellCount", 28.5, 6.7], ["fellVolumeM3", 35.7, 6.2],
+    ["excavatedSpecies", 42.2, 6.8], ["excavatedCount", 49.2, 6.7], ["excavatedVolumeM3", 56, 6.2],
+    ["stoneTotalM3", 62.6, 6.1], ["stoneMaterialM3", 68.9, 6.1], ["soilM3", 75.5, 13.5],
+  ].forEach(([id, left, width]) => drawFieldAt(pdf, documentField(document, String(id)), Number(left), 46.7, Number(width), { fontSize: 5.9, align: "center" }));
+
+  drawFieldAt(pdf, documentField(document, "purpose"), 21.3, 50.9, 31, { fontSize: 6.3, align: "center", heightPercent: 2.7 });
+  const period = [documentField(document, "startDate"), documentField(document, "endDate")].filter(Boolean).join(" ~ ");
+  drawFieldAt(pdf, period, 68.3, 50.9, 20.7, { fontSize: 5.9, align: "center", heightPercent: 2.7 });
+  const payment = documentField(document, "replacementForestChargePayment");
+  if (payment === "before-permit") drawFieldAt(pdf, "✓", 22.9, 52.8, 2.4, { fontSize: 9, align: "center" });
+  if (payment === "after-permit-conditional") drawFieldAt(pdf, "✓", 22.9, 54.7, 2.4, { fontSize: 9, align: "center" });
+  [["previousDescription", 21.2, 22], ["changedDescription", 43.8, 23], ["changeReason", 68.3, 20.5]].forEach(([id, left, width]) => {
+    drawFieldAt(pdf, documentField(document, String(id)), Number(left), 60.1, Number(width), { fontSize: 5.9, align: "center", heightPercent: 3.4 });
+  });
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+  drawOfficialDate(pdf, documentField(document, "applicationDate") || today, [{ left: 77, width: 4.2 }, { left: 82.7, width: 3.1 }, { left: 88, width: 3.1 }], 69.1);
+  drawFieldAt(pdf, documentField(document, "signerName"), 52.5, 72, 27, { fontSize: 6.7, align: "center" });
+
+  addPdfPage(pdf);
+  pdf.image(pdfTemplatePath("forest-application-page-2.png"), 0, 0, { width: pdf.page.width, height: pdf.page.height });
+  if (documentField(document, "consentToLivestockRegistrationLookup") === "yes") {
+    drawFieldAt(pdf, documentField(document, "consentSignerName"), 55, 95, 28, { fontSize: 6.7, align: "center" });
+  }
+}
+
 function drawPdfTable(
   pdf: PDFKit.PDFDocument,
   headers: string[],
@@ -650,6 +707,7 @@ async function createPdfBuffer(caseData: CaseDocumentData, parcels: FirebaseFire
       const documents = requestedDocuments.length ? requestedDocuments : [fallbackDocument(caseData, parcels, attachments)];
       documents.forEach((document) => {
         if (document.templateId === "development-application") renderDevelopmentApplicationPdf(pdf, document);
+        else if (document.templateId === "forest-application") renderForestApplicationPdf(pdf, document);
         else if (document.templateId === "area-statement") renderAreaStatementPdf(pdf, document);
         else if (document.templateId === "business-plan") renderBusinessPlanPdf(pdf, document);
         else if (document.templateId === "damage-prevention-plan") renderDamagePreventionPdf(pdf, document);
@@ -666,7 +724,71 @@ async function createDocxBuffer(caseData: CaseDocumentData, parcels: FirebaseFir
   const cell = (text: string) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text, font: "Noto Sans KR", size: 19 })] })] });
   const documents = requestedDocuments.length ? requestedDocuments : [fallbackDocument(caseData, parcels, attachments)];
   const children: Array<Paragraph | Table> = [];
+  const appendForestApplication = (item: DocumentSnapshot, index: number) => {
+    const field = (id: string) => documentField(item, id);
+    const mark = (selected: boolean) => selected ? "☑" : "☐";
+    const officialCell = (text: string, options: { header?: boolean; span?: number } = {}) => new TableCell({
+      columnSpan: options.span,
+      shading: options.header ? { type: ShadingType.SOLID, fill: "E6E6E6", color: "auto" } : undefined,
+      margins: { top: 70, bottom: 70, left: 90, right: 90 },
+      children: [new Paragraph({
+        alignment: options.header ? AlignmentType.CENTER : AlignmentType.LEFT,
+        children: [new TextRun({ text: text || " ", bold: options.header, font: "Noto Sans KR", size: 17 })],
+      })],
+    });
+    const period = [field("startDate"), field("endDate")].filter(Boolean).join(" ~ ");
+    children.push(
+      new Paragraph({ text: "산지전용 허가·변경허가 신청서", heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, pageBreakBefore: index > 0 }),
+      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${mark(field("applicationKind") === "new")} 허가    ${mark(field("applicationKind") === "change")} 변경허가`, bold: true, size: 22 })] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "산지관리법 시행규칙 별지 제3호서식 · 개정 2026. 6. 24.", size: 15, color: "555555" })] }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: [officialCell("신청인", { header: true }), officialCell("성명·명칭"), officialCell(field("applicantName")), officialCell("주민·법인등록번호", { header: true }), officialCell(field("registrationNumber"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("주소"), officialCell(field("applicantAddress")), officialCell("전화번호", { header: true }), officialCell(field("applicantPhone"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("해당 산지에 대한 권리관계"), officialCell(field("forestRightRelation"), { span: 3 })] }),
+        new TableRow({ children: [officialCell("산지 소유자", { header: true }), officialCell("성명"), officialCell(field("ownerName")), officialCell("생년월일", { header: true }), officialCell(field("ownerBirthDate"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("주소"), officialCell(field("ownerAddress")), officialCell("전화번호", { header: true }), officialCell(field("ownerPhone"))] }),
+      ] }),
+      new Paragraph({ text: "전용대상 산지", heading: HeadingLevel.HEADING_1 }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: ["소재지", "지번", "지목", "면적 계(㎡)", "임업용(㎡)", "공익용(㎡)", "준보전(㎡)"].map((label) => officialCell(label, { header: true })) }),
+        ...[1, 2, 3].map((row) => new TableRow({ children: [
+          officialCell(field(`forestParcel${row}Address`)), officialCell(field(`forestParcel${row}LotNumber`)), officialCell(field(`forestParcel${row}Category`)),
+          officialCell(field(`forestParcel${row}AreaTotalM2`)), officialCell(field(`forestParcel${row}ForestryAreaM2`)),
+          officialCell(field(`forestParcel${row}PublicAreaM2`)), officialCell(field(`forestParcel${row}SemiConservationAreaM2`)),
+        ] })),
+      ] }),
+      new Paragraph({ text: "부산물 생산현황", heading: HeadingLevel.HEADING_1 }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: ["벌채 수종", "본수", "부피", "굴취 수종", "본수", "부피", "토석 계", "석재", "토사"].map((label) => officialCell(label, { header: true })) }),
+        new TableRow({ children: ["fellSpecies", "fellCount", "fellVolumeM3", "excavatedSpecies", "excavatedCount", "excavatedVolumeM3", "stoneTotalM3", "stoneMaterialM3", "soilM3"].map((id) => officialCell(field(id))) }),
+      ] }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: [officialCell("전용목적", { header: true }), officialCell(field("purpose")), officialCell("전용기간", { header: true }), officialCell(period)] }),
+        new TableRow({ children: [officialCell("대체산림자원조성비 납부", { header: true }), officialCell(`${mark(field("replacementForestChargePayment") === "before-permit")} 허가 전 납부\n${mark(field("replacementForestChargePayment") === "after-permit-conditional")} 납부기한 내 납부 조건으로 허가 후 납부`, { span: 3 })] }),
+      ] }),
+      new Paragraph({ text: "변경사항", heading: HeadingLevel.HEADING_1 }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: [officialCell("변경 전", { header: true }), officialCell("변경 후", { header: true }), officialCell("사유", { header: true })] }),
+        new TableRow({ children: [officialCell(field("previousDescription")), officialCell(field("changedDescription")), officialCell(field("changeReason"))] }),
+      ] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${field("applicationDate")}  신청인 ${field("signerName")} (서명 또는 인)` })] }),
+      new Paragraph({ text: "첨부서류 및 행정정보 공동이용", heading: HeadingLevel.TITLE, pageBreakBefore: true, alignment: AlignmentType.CENTER }),
+      ...[
+        "사업계획서(산지전용 목적·기간·이용계획과 입목·토석 처리 및 피해방지계획 포함)",
+        "산지의 소유권 또는 사용·수익권 증빙",
+        "지형도·지적도·실측도와 산림조사서 등 해당 서류",
+        "복구·경사도·재해·재선충·경관 관련 조건부 서류",
+        "그 밖에 별지 제3호서식 뒤쪽에서 정한 서류",
+      ].map((text) => new Paragraph({ text, bullet: { level: 0 } })),
+      new Paragraph({ text: `행정정보 공동이용: ${field("consentToLivestockRegistrationLookup") === "yes" ? "동의함" : "동의하지 않음"}    신청인 ${field("consentToLivestockRegistrationLookup") === "yes" ? field("consentSignerName") : ""}` }),
+      new Paragraph({ children: [new TextRun({ text: item.notice, bold: true })] }),
+    );
+  };
   documents.forEach((item, index) => {
+    if (item.templateId === "forest-application") {
+      appendForestApplication(item, index);
+      return;
+    }
     children.push(new Paragraph({ text: item.title, heading: HeadingLevel.TITLE, pageBreakBefore: index > 0 }));
     children.push(new Paragraph({ children: [new TextRun({ text: item.statusLabel, bold: true, color: "08766D" })] }));
     children.push(new Paragraph({ text: `${item.templateVersion} · 제출본 v${version} · 작성자 ${item.author || caseData.assigneeName || "-"} · 생성 ${formatKstDate(new Date())}` }));
