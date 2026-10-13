@@ -33,6 +33,7 @@ import { ParcelMap } from "../components/ParcelMap";
 import { StatusBadge } from "../components/StatusBadge";
 
 type DetailTab = "overview" | "deadline" | "files" | "history";
+const DASHBOARD_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [48, 48, 360, 48];
 
 export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
   const { user } = useAuth();
@@ -209,7 +210,7 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
 
           {!listOnly && (
             <div className="case-map-panel">
-              <ParcelMap cases={filteredCases} selectedCaseId={selectedCaseId} onCaseSelect={openCase} />
+              <ParcelMap cases={filteredCases} selectedCaseId={selectedCaseId} selectedCaseFitPadding={DASHBOARD_SELECTED_CASE_FIT_PADDING} onCaseSelect={openCase} />
               {selectedCase && (
                 <CaseDetailCard
                   caseRecord={selectedCase}
