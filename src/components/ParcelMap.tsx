@@ -7,6 +7,7 @@ import XYZ from "ol/source/XYZ";
 import TileWMS from "ol/source/TileWMS";
 import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
+import GeoJSON from "ol/format/GeoJSON";
 import type ImageTile from "ol/ImageTile";
 import TileState from "ol/TileState";
 import Point from "ol/geom/Point";
@@ -35,6 +36,18 @@ interface ParcelMapProps {
 
 const EMPTY_CASES: CaseRecord[] = [];
 const EMPTY_PARCELS: ParcelSnapshot[] = [];
+const geoJson = new GeoJSON();
+
+function parcelFeature(parcel: ParcelSnapshot, parcelIndex: number) {
+  const boundaryGeometry = parcel.boundary
+    ? geoJson.readGeometry(parcel.boundary, {
+        dataProjection: "EPSG:4326",
+        featureProjection: "EPSG:3857",
+      })
+    : null;
+  const geometry = boundaryGeometry ?? new Point(fromLonLat([parcel.longitude, parcel.latitude]));
+  return new Feature({ geometry, pnu: parcel.pnu, parcelIndex });
+}
 
 export function ParcelMap({
   cases = EMPTY_CASES,
@@ -133,6 +146,14 @@ export function ParcelMap({
       source: vectorSourceRef.current,
       style: (feature) => {
         const selected = feature.get("caseId") === selectedCaseIdRef.current;
+        const geometryType = feature.getGeometry()?.getType();
+        if (geometryType === "Polygon" || geometryType === "MultiPolygon") {
+          const primary = feature.get("parcelIndex") === 0;
+          return new Style({
+            fill: new Fill({ color: primary ? "rgba(0, 69, 65, 0.36)" : "rgba(25, 166, 154, 0.30)" }),
+            stroke: new Stroke({ color: primary ? "#004541" : "#087f76", width: primary ? 3 : 2.5 }),
+          });
+        }
         return new Style({
           image: new CircleStyle({
             radius: selected ? 10 : 8,
@@ -201,10 +222,7 @@ export function ParcelMap({
       });
       return feature;
     }));
-    const parcelFeatures = parcels.map((parcel) => new Feature({
-      geometry: new Point(fromLonLat([parcel.longitude, parcel.latitude])),
-      pnu: parcel.pnu,
-    }));
+    const parcelFeatures = parcels.map(parcelFeature);
     source.addFeatures([...caseFeatures, ...parcelFeatures]);
     const selected = cases.find((item) => item.id === selectedCaseId)?.parcels[0] ?? parcels.at(-1);
     if (selected) {
