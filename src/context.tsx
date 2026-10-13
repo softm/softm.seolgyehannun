@@ -12,6 +12,7 @@ import {
   bootstrapUserOrganization,
   endSession,
   observeUser,
+  reloadCurrentUser,
   registerWithEmail,
   signInWithEmail,
   signInWithGoogle,
@@ -27,6 +28,7 @@ interface AuthContextValue {
   register: (name: string, organizationName: string, email: string, password: string) => Promise<void>;
   startDemo: () => void;
   createOrganization: (name: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (name, organizationName, email, password) => setUser(await registerWithEmail(name, organizationName, email, password)),
     startDemo: () => setUser(startDemoSession()),
     createOrganization: async (name) => setUser(await bootstrapUserOrganization(name)),
+    refreshUser: async () => setUser(await reloadCurrentUser()),
     logout: async () => {
       await endSession();
       setUser(null);
