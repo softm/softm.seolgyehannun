@@ -22,7 +22,7 @@ import {
   Table2,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { useAuth, useCases } from "../context";
 import { deadlineDistance, deadlineLabel, isOverdue } from "../domain/deadline";
@@ -65,6 +65,7 @@ function readWorkspacePreference(key: string): CaseWorkspacePreference | null {
 }
 
 export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { cases, loading, error, selectedCase, selectedCaseId, selectCase, persistCase } = useCases();
   const workspacePreferenceKey = `seolgye-hannun:case-workspace:${user?.organizationId ?? "unknown"}:${user?.uid ?? "unknown"}`;
@@ -280,8 +281,8 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
           </div>
           {!listOnly && (
             <div className="mobile-view-switch" role="group" aria-label="목록 지도 전환">
-              <button type="button" className={mobileView === "list" ? "active" : ""} onClick={() => setMobileView("list")}><List size={17} /> 목록</button>
-              <button type="button" className={mobileView === "map" ? "active" : ""} onClick={() => setMobileView("map")}><MapIcon size={17} /> 지도</button>
+              <button type="button" className={mobileView === "list" ? "active" : ""} onClick={() => navigate("/app/cases")}><List size={17} /> 목록</button>
+              <button type="button" aria-pressed={mobileView === "map"} className={mobileView === "map" ? "active" : ""} onClick={() => setMobileView("map")}><MapIcon size={17} /> 지도</button>
             </div>
           )}
         </div>
