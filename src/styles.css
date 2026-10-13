@@ -1738,3 +1738,36 @@ body { font-size: 16px; line-height: 1.55; }
   .case-inspector .case-detail-card { border-radius: 18px 18px 0 0; }
   .case-inspector .detail-drag-handle { width: 42px; height: 4px; margin: 7px auto 0; border-radius: 3px; background: #d0d7dc; display: block; }
 }
+
+/* Dashboard map reliability and mobile information hierarchy */
+.map-context-card { max-width: min(360px, calc(100% - 92px)); min-height: 48px; padding: 8px 11px; border: 1px solid rgba(201, 218, 214, .92); border-radius: 10px; background: rgba(255, 255, 255, .94); display: grid; gap: 2px; position: absolute; top: 13px; left: 13px; z-index: 4; box-shadow: var(--shadow-sm); pointer-events: none; }
+.map-context-card strong, .map-context-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-context-card strong { color: #244b46; font-size: 13px; }
+.map-context-card span { color: #6f807c; font-size: 12px; }
+.map-layer-notice { gap: 7px; flex-direction: column; }
+.map-layer-notice > div { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; }
+.map-layer-notice button { min-height: 34px; padding: 0 10px; border: 1px solid #d8bd82; border-radius: 7px; background: white; color: #76500c; font-size: 12px; font-weight: 800; cursor: pointer; }
+
+@media (max-width: 760px) {
+  .dashboard-page .summary-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .dashboard-page .summary-cards article { min-height: 78px; padding: 8px; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 7px; }
+  .dashboard-page .summary-icon { width: 32px; height: 32px; border-radius: 9px; }
+  .dashboard-page .summary-icon svg { width: 17px; }
+  .dashboard-page .summary-cards article > div { display: grid; grid-template-columns: 1fr; gap: 0; }
+  .app-frame .dashboard-page .summary-cards small { font-size: 12px; white-space: nowrap; }
+  .app-frame .dashboard-page .summary-cards strong { margin: 0; font-size: 22px; }
+  .dashboard-page .summary-cards strong em, .dashboard-page .summary-cards p, .dashboard-page .summary-cards article > svg { display: none; }
+  .dashboard-page .workspace-toolbar .search-field { order: 1; }
+  .dashboard-page .workspace-toolbar-actions { order: 2; width: 100%; }
+  .dashboard-page .status-filters { order: 3; }
+  .dashboard-page .mobile-view-switch { width: 100%; margin-left: 0; order: 4; }
+  .dashboard-page .mobile-view-switch button { justify-content: center; }
+  .case-workspace.mobile-map { min-height: 0; }
+  .case-workspace.mobile-map .case-map-panel { height: clamp(430px, 62vh, 560px); min-height: 430px; }
+  .case-workspace.mobile-map .case-map-panel .parcel-map-shell,
+  .case-workspace.mobile-map .case-map-panel .parcel-map { height: 100%; min-height: 0; }
+  .map-context-card { max-width: calc(100% - 82px); }
+  .map-layer-switch { left: 8px; bottom: 31px; }
+  .map-layer-switch button { min-width: 52px; padding: 0 9px; }
+  .map-layer-notice { bottom: 88px; }
+}
