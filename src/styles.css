@@ -678,8 +678,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .wizard-map { height: 390px; margin-top: 12px; border: 1px solid #dce4e1; border-radius: 13px; overflow: hidden; position: relative; }
 .wizard-map .parcel-map-shell, .wizard-map .parcel-map { min-height: 390px; }
 .map-loading { position: absolute; inset: 0; background: rgba(255,255,255,0.66); backdrop-filter: blur(2px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: var(--teal-800); font-size: 9px; font-weight: 750; z-index: 9; }
-.selected-parcel-list { display: grid; gap: 8px; }
-.selected-parcel-list article { min-height: 126px; padding: 13px; border: 1px solid #e0e6e9; border-radius: 12px; display: grid; grid-template-columns: 26px minmax(0, 1fr) 35px; gap: 9px; }
+.selected-parcel-list { max-height: min(58vh, 640px); padding-right: 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-color: var(--teal-600) #edf3f2; display: grid; gap: 8px; }
+.selected-parcel-list article { min-height: 126px; padding: 13px; border: 1px solid #e0e6e9; border-radius: 12px; display: grid; grid-template-columns: 35px 26px minmax(0, 1fr) 35px; gap: 9px; transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease; }
+.selected-parcel-list article.dragging { border-color: var(--teal-600); background: #f3fbf9; box-shadow: 0 8px 20px rgba(0, 69, 65, 0.14); }
 .parcel-order { width: 25px; height: 25px; border-radius: 8px; display: grid; place-items: center; background: var(--teal-900); color: white; font-size: 8px; font-weight: 800; }
 .parcel-role { margin-bottom: 5px; color: var(--teal-700); font-size: 8px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
 .parcel-role span { padding: 3px 5px; border-radius: 5px; background: #eaf7f3; display: inline-flex; align-items: center; gap: 3px; color: var(--success); font-size: 6px; }
@@ -688,7 +689,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .parcel-facts { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
 .parcel-facts span { padding: 3px 6px; border-radius: 5px; background: #f1f4f5; color: #66747f; font-size: 7px; }
 .selected-parcel-list p { margin: 8px 0 0; color: #9aa4ac; font-size: 6.5px; }
-.selected-parcel-list article > button { width: 35px; height: 35px; border: 0; border-radius: 8px; background: #f4f6f7; color: #7f8b95; display: grid; place-items: center; cursor: pointer; }
+.parcel-drag-handle, .parcel-remove { width: 35px; height: 35px; border: 0; border-radius: 8px; display: grid; place-items: center; cursor: pointer; }
+.parcel-drag-handle { align-self: start; background: #eaf7f5; color: var(--teal-700); cursor: grab; touch-action: none; user-select: none; }
+.parcel-drag-handle:active, .dragging .parcel-drag-handle { cursor: grabbing; background: var(--mint-200); color: var(--teal-900); }
+.parcel-drag-handle:focus-visible, .parcel-remove:focus-visible { outline: 3px solid rgba(0, 122, 114, 0.28); outline-offset: 2px; }
+.parcel-remove { background: #f4f6f7; color: #7f8b95; }
 .empty-selection { min-height: 240px; padding: 25px; border: 1px dashed #ccd6da; border-radius: 12px; background: #fbfcfd; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
 .empty-selection > svg { color: #9faaa8; }
 .empty-selection strong { font-size: 10px; }
@@ -1069,7 +1074,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .notification-button { width: 44px; }
   .permit-card-grid { grid-template-columns: 1fr; }
   .permit-card { min-height: 132px; }
-  .selected-parcel-list article { grid-template-columns: 25px minmax(0, 1fr) 34px; }
+  .selected-parcel-list { max-height: 56vh; }
+  .selected-parcel-list article { grid-template-columns: 34px 25px minmax(0, 1fr) 34px; padding: 11px; gap: 7px; }
   .output-actions { grid-template-columns: 1fr; }
   .wizard-footer .button { padding: 0 13px; }
 }
