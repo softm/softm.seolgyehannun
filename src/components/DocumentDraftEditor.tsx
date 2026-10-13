@@ -49,6 +49,13 @@ function withResetField(drafts: DocumentDraft[], templateId: string, fieldId: st
   });
 }
 
+function formatFidelityLabel(fidelity?: string): string {
+  if (fidelity === "official-layout") return "국가서식 배치";
+  if (fidelity === "official-field-map") return "국가서식 항목 대응";
+  if (fidelity === "office-template") return "사무소 편집 서식";
+  return "지원 정보 확인 필요";
+}
+
 export function DocumentDraftEditor({ caseRecord, onChange, onDownload, downloadPending = "", readOnly = false }: DocumentDraftEditorProps) {
   const templates = useMemo(() => applicableDocumentTemplates(caseRecord), [caseRecord.permits]);
   const drafts = useMemo(() => ensureDocumentDrafts(caseRecord), [caseRecord]);
@@ -91,7 +98,7 @@ export function DocumentDraftEditor({ caseRecord, onChange, onDownload, download
             <div key={template.id} className={`template-rail-item ${active.id === template.id ? "active" : ""}`}>
               <button type="button" className="template-selector" onClick={() => setActiveId(template.id)}>
                 <span className={`template-kind ${template.category}`}>{template.category === "application" ? "신청" : template.category === "statement" ? "조서" : template.category === "prevention" ? "대책" : "계획"}</span>
-                <div><strong>{template.shortTitle}</strong><small>{template.status === "official-reference" ? "공식 별지 항목" : "예시 편집 서식"}</small></div>
+                <div><strong>{template.shortTitle}</strong><small>{template.generatedFormatFidelity?.pdf === "official-layout" ? "국가서식 배치" : template.status === "official-reference" ? "공식 별지 항목" : "예시 편집 서식"}</small></div>
                 <em className={missing ? "needs-review" : "complete"}>{missing ? `${missing}개 확인` : <Check size={14} />}</em>
               </button>
               <label className="template-output-toggle">
@@ -114,11 +121,25 @@ export function DocumentDraftEditor({ caseRecord, onChange, onDownload, download
         <header className="template-editor-head">
           <div>
             <div className="template-badges">
-              <span className={active.status}>{active.status === "official-reference" ? "공식 서식 항목 확인" : "예시 서식"}</span>
+              <span className={active.status}>{active.generatedFormatFidelity?.pdf === "official-layout" ? "국가서식 원본 배치" : active.status === "official-reference" ? "공식 서식 항목 확인" : "예시 서식"}</span>
               <span>{active.versionLabel}</span>
             </div>
             <h3>{active.title}</h3>
             <p>{active.description}</p>
+            {active.officialSource && <div className="official-form-source">
+              <strong>{active.officialSource.regulationName} {active.officialSource.formNumber}</strong>
+              <span>개정 {active.officialSource.revisionDate}</span>
+              <span>시행 {active.officialSource.effectiveDate}</span>
+            </div>}
+            <div className="template-format-status">
+              <span>PDF · {formatFidelityLabel(active.generatedFormatFidelity?.pdf)}</span>
+              <span>DOCX · {formatFidelityLabel(active.generatedFormatFidelity?.docx)}</span>
+            </div>
+            {active.officialSource?.formatUrls && <div className="template-source-links">
+              {Object.entries(active.officialSource.formatUrls).map(([format, url]) => url
+                ? <a key={format} href={url} target="_blank" rel="noreferrer">원본 {format.toUpperCase()} <ExternalLink size={13} /></a>
+                : null)}
+            </div>}
           </div>
           <div className="template-editor-actions">
             {active.sourceUrl && <a href={active.sourceUrl} target="_blank" rel="noreferrer">원문 서식 <ExternalLink size={15} /></a>}
@@ -154,7 +175,7 @@ export function DocumentDraftEditor({ caseRecord, onChange, onDownload, download
               disabled: readOnly,
               placeholder: field.placeholder ?? (field.required ? "필수 항목을 입력하세요." : "해당 시 입력"),
             };
-            return <label key={field.id} className={field.kind === "textarea" ? "wide" : ""}><span>{field.label}{field.required && <b>필수</b>}</span><div className={`template-input-wrap ${overridden ? "has-override" : ""}`}>{field.kind === "textarea" ? <textarea {...commonProps} rows={5} /> : field.kind === "choice" ? <select {...commonProps}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input {...commonProps} type={field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text"} />}{overridden && <span className="value-origin edited">직접 수정</span>}</div><small>{field.sourceKey ? <><Link2 size={12} aria-hidden="true" />{overridden ? "문서별 수정값" : `공통정보 · ${field.sourceKey}`}{overridden && <button type="button" onClick={() => resetField(field.id)} disabled={readOnly}><RotateCcw size={12} /> 자동값 복원{automaticValue ? ` (${automaticValue.slice(0, 24)})` : ""}</button>}</> : "이 문서에서만 입력하는 항목"}</small></label>;
+            return <label key={field.id} className={field.kind === "textarea" ? "wide" : ""}><span>{field.label}{field.required && <b>필수</b>}</span><div className={`template-input-wrap ${overridden ? "has-override" : ""}`}>{field.kind === "textarea" ? <textarea {...commonProps} rows={5} /> : field.kind === "choice" ? <select {...commonProps}><option value="">선택하세요.</option>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input {...commonProps} type={field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text"} />}{overridden && <span className="value-origin edited">직접 수정</span>}</div><small>{field.sourceKey ? <><Link2 size={12} aria-hidden="true" />{overridden ? "문서별 수정값" : `공통정보 · ${field.sourceKey}`}{overridden && <button type="button" onClick={() => resetField(field.id)} disabled={readOnly}><RotateCcw size={12} /> 자동값 복원{automaticValue ? ` (${automaticValue.slice(0, 24)})` : ""}</button>}</> : "이 문서에서만 입력하는 항목"}</small></label>;
           })}</div></fieldset>)}
         </div>
       </section>
