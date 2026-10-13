@@ -1,6 +1,7 @@
 import type { CaseRecord } from "../types";
 import { buildCaseDocumentModels, type CaseDocumentModel } from "../domain/documentModel";
 import { formatSeoulDate } from "../domain/date";
+import { buildReferencePdfPages, type PdfPageOrientation } from "./documentPdfTemplates";
 
 const bodyFont = "NanumGothic";
 
@@ -15,7 +16,17 @@ function fileBaseName(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
 }
 
-export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
+function exportModels(caseRecord: CaseRecord, templateId?: string): CaseDocumentModel[] {
+  return buildCaseDocumentModels(caseRecord, templateId ? [templateId] : undefined);
+}
+
+function exportFileName(caseRecord: CaseRecord, models: CaseDocumentModel[], extension: "pdf" | "docx"): string {
+  const version = models[0]?.version ?? 1;
+  const documentName = models.length === 1 ? models[0].title : "제출서류묶음";
+  return `${fileBaseName(caseRecord.title)}_${fileBaseName(documentName)}_v${version}.${extension}`;
+}
+
+export async function exportCaseDocx(caseRecord: CaseRecord, templateId?: string): Promise<void> {
   const [docxModule, fileSaverModule, fontData] = await Promise.all([
     import("docx"),
     import("file-saver"),
@@ -36,8 +47,8 @@ export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
     WidthType,
   } = docxModule;
   const { saveAs } = fileSaverModule;
-  const models = buildCaseDocumentModels(caseRecord);
-  if (!models.length) throw new Error("출력에 포함할 문서를 1개 이상 선택해 주세요.");
+  const models = exportModels(caseRecord, templateId);
+  if (!models.length) throw new Error("다운로드할 문서를 찾지 못했습니다.");
 
   const tableCell = (text: string, isHeader = false) => new TableCell({
     shading: isHeader ? { type: ShadingType.SOLID, fill: "004541", color: "auto" } : undefined,
@@ -139,7 +150,6 @@ export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
     );
   });
 
-  const version = models[0].version;
   const document = new Document({
     creator: caseRecord.assigneeName,
     title: `${caseRecord.title} 제출서류 묶음`,
@@ -163,7 +173,7 @@ export async function exportCaseDocx(caseRecord: CaseRecord): Promise<void> {
     }],
   });
   const blob = await Packer.toBlob(document);
-  saveAs(blob, `${fileBaseName(caseRecord.title)}_제출서류묶음_v${version}.docx`);
+  saveAs(blob, exportFileName(caseRecord, models, "docx"));
 }
 
 function appendText(parent: HTMLElement, tag: keyof HTMLElementTagNameMap, value: string, className?: string): HTMLElement {
@@ -284,33 +294,77 @@ function paginatePdfElement(element: HTMLElement): number {
   return pageCount;
 }
 
-export async function exportCasePdf(caseRecord: CaseRecord): Promise<void> {
-  const models = buildCaseDocumentModels(caseRecord);
-  if (!models.length) throw new Error("출력에 포함할 문서를 1개 이상 선택해 주세요.");
+async function waitForPdfAssets(element: HTMLElement): Promise<void> {
+  const backgroundImage = element.dataset.backgroundImage;
+  if (backgroundImage) {
+    const image = new Image();
+    image.src = backgroundImage;
+    await image.decode();
+  }
+  await Promise.all(Array.from(element.querySelectorAll("img")).map(async (image) => {
+    if (!image.complete) await image.decode();
+  }));
+}
+
+export async function exportCasePdf(caseRecord: CaseRecord, templateId?: string): Promise<void> {
+  const models = exportModels(caseRecord, templateId);
+  if (!models.length) throw new Error("다운로드할 문서를 찾지 못했습니다.");
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
   await document.fonts.ready;
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  let outputPageIndex = 0;
+  let pdf: InstanceType<typeof jsPDF> | undefined;
+
+  const addPage = (orientation: PdfPageOrientation) => {
+    if (!pdf) {
+      pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
+    } else {
+      pdf.addPage("a4", orientation);
+    }
+    return pdf;
+  };
 
   for (const model of models) {
+    const referencePages = buildReferencePdfPages(caseRecord, model);
+    if (referencePages) {
+      for (const referencePage of referencePages) {
+        try {
+          await waitForPdfAssets(referencePage.element);
+          const canvas = await html2canvas(referencePage.element, { scale: 2, backgroundColor: "#ffffff", logging: false });
+          const output = addPage(referencePage.orientation);
+          output.addImage(
+            canvas.toDataURL("image/png"),
+            "PNG",
+            0,
+            0,
+            output.internal.pageSize.getWidth(),
+            output.internal.pageSize.getHeight(),
+            undefined,
+            "FAST",
+          );
+        } finally {
+          referencePage.element.remove();
+        }
+      }
+      continue;
+    }
+
     const element = buildPdfElement(caseRecord, model);
     try {
       const pageCount = paginatePdfElement(element);
       const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff", logging: false });
-      const imageHeight = (canvas.height * pageWidth) / canvas.width;
+      const portraitWidth = 210;
+      const portraitHeight = 297;
+      const imageHeight = (canvas.height * portraitWidth) / canvas.width;
       const image = canvas.toDataURL("image/jpeg", 0.94);
 
       for (let modelPageIndex = 0; modelPageIndex < pageCount; modelPageIndex += 1) {
-        if (outputPageIndex > 0) pdf.addPage();
-        pdf.addImage(image, "JPEG", 0, -modelPageIndex * pageHeight, pageWidth, imageHeight, undefined, "FAST");
-        outputPageIndex += 1;
+        const output = addPage("portrait");
+        output.addImage(image, "JPEG", 0, -modelPageIndex * portraitHeight, portraitWidth, imageHeight, undefined, "FAST");
       }
     } finally {
       element.remove();
     }
   }
 
-  pdf.save(`${fileBaseName(caseRecord.title)}_제출서류묶음_v${models[0].version}.pdf`);
+  if (!pdf) throw new Error("PDF 페이지를 만들지 못했습니다.");
+  pdf.save(exportFileName(caseRecord, models, "pdf"));
 }
