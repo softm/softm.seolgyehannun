@@ -331,6 +331,8 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
   const [results, setResults] = useState<VWorldSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [mapLoading, setMapLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [mapFocus, setMapFocus] = useState<{ longitude: number; latitude: number; requestId: number } | null>(null);
   const [message, setMessage] = useState("");
 
   async function searchAddress() {
@@ -391,9 +393,50 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
       setMessage("이 브라우저는 현재 위치를 지원하지 않습니다.");
       return;
     }
+    if (locating) return;
+    setLocating(true);
+    setMapLoading(true);
+    setMessage("현재 위치와 주변 주소를 확인하고 있습니다.");
     navigator.geolocation.getCurrentPosition(
-      () => setMessage("현재 위치를 지도 시작점으로만 사용했습니다. 위치 정보는 저장하지 않습니다."),
-      () => setMessage("위치 권한 없이도 주소 검색과 지도 클릭으로 계속할 수 있습니다."),
+      ({ coords }) => {
+        const longitude = coords.longitude;
+        const latitude = coords.latitude;
+        setMapFocus({ longitude, latitude, requestId: Date.now() });
+        void lookupParcel(longitude, latitude)
+          .then((parcel) => {
+            setQuery(parcel.address);
+            setResults([{
+              id: `current-${parcel.pnu}`,
+              title: parcel.address,
+              address: parcel.address,
+              roadAddress: parcel.roadAddress ?? "",
+              pnu: parcel.pnu,
+              longitude,
+              latitude,
+              category: "parcel",
+            }]);
+            const accuracy = Math.round(Number(coords.accuracy) || 0);
+            setMessage(`현재 위치${accuracy ? ` 약 ±${accuracy}m` : ""}의 주소를 찾았습니다. 아래 결과를 눌러 필지를 선택하세요. 위치 좌표는 선택 전까지 저장하지 않습니다.`);
+          })
+          .catch((reason) => {
+            setMessage(reason instanceof Error ? reason.message : "현재 위치 주변 주소를 찾지 못했습니다.");
+          })
+          .finally(() => {
+            setLocating(false);
+            setMapLoading(false);
+          });
+      },
+      (error) => {
+        const messages: Record<number, string> = {
+          1: "위치 권한을 허용하면 현재 위치의 주소를 찾을 수 있습니다.",
+          2: "현재 위치를 확인할 수 없습니다. GPS와 네트워크를 확인해 주세요.",
+          3: "현재 위치 확인 시간이 초과됐습니다. 다시 시도해 주세요.",
+        };
+        setMessage(messages[error.code] ?? "위치 권한 없이도 주소 검색과 지도 클릭으로 계속할 수 있습니다.");
+        setLocating(false);
+        setMapLoading(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 30_000, timeout: 15_000 },
     );
   }
 
@@ -402,11 +445,11 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
   return (
     <div className="parcel-step step-grid">
       <section className="wizard-card parcel-search-card">
-        <div className="card-title"><div><h3>필지 찾기</h3><p>주소·지번을 검색하거나 지도를 눌러 선택하세요.</p></div><button type="button" className="button button-secondary compact" onClick={useCurrentLocation}><LocateFixed size={17} /> 현재 위치</button></div>
+        <div className="card-title"><div><h3>필지 찾기</h3><p>주소·지번을 검색하거나 VWorld 지적도를 눌러 선택하세요.</p></div><button type="button" className="button button-secondary compact" onClick={useCurrentLocation} disabled={locating} aria-busy={locating}><LocateFixed size={17} /> {locating ? "위치 확인 중" : "현재 위치"}</button></div>
         <div className="address-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && searchAddress()} placeholder="예: 화성시 남양읍 신남리 145" /><button type="button" onClick={searchAddress} disabled={searching}>{searching ? <LoaderCircle className="spin" size={18} /> : "검색"}</button></div>
         {results.length > 0 && <div className="search-results" role="listbox">{results.map((result) => <button type="button" key={result.id} onClick={() => addByResult(result)}><span>{result.category === "parcel" ? "지번" : result.category === "road" ? "도로" : "장소"}</span><div><strong>{result.title}</strong><small>{result.address}{result.roadAddress && ` · ${result.roadAddress}`}</small></div><Plus size={18} /></button>)}</div>}
-        {message && <div className="lookup-message"><CircleAlert size={17} />{message}</div>}
-        <div className="wizard-map"><ParcelMap parcels={caseRecord.parcels} interactive onMapClick={addByMap} />{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />필지 확인 중</div>}</div>
+        {message && <div className="lookup-message" role="status" aria-live="polite"><CircleAlert size={17} />{message}</div>}
+        <div className="wizard-map"><ParcelMap parcels={caseRecord.parcels} focusLocation={mapFocus} interactive onMapClick={addByMap} />{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />{locating ? "현재 위치의 주소 확인 중" : "필지 확인 중"}</div>}</div>
       </section>
 
       <section className="wizard-card selected-parcels-card">
