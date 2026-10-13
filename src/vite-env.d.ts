@@ -11,6 +11,7 @@ interface ImportMetaEnv {
   readonly VITE_RECAPTCHA_ENTERPRISE_SITE_KEY?: string;
   readonly VITE_USE_FIREBASE_EMULATORS?: string;
   readonly VITE_API_BASE?: string;
+  readonly VITE_DEPLOY_TARGET?: string;
 }
 
 interface ImportMeta {
