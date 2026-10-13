@@ -1074,4 +1074,81 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
+/* Readability scale: keep operational text legible on high-density displays. */
+body { font-size: 16px; line-height: 1.55; }
+.button { font-size: 15px; }
+.button.compact { font-size: 14px; }
+.brand small,
+.hero-note,
+.trust-strip span,
+.landing-footer p,
+.landing-footer > span,
+.login-security,
+.login-notice { font-size: 13px; }
+.eyebrow,
+.section-heading > span,
+.back-link,
+.login-message > span,
+.login-card-head > span,
+.mode-switch { font-size: 14px; }
+.landing-header nav a,
+.workflow-grid p,
+.demo-explanation p,
+.security-grid p,
+.login-message p,
+.login-card-head p,
+.login-card label,
+.dialog label { font-size: 15px; }
+.demo-tabs button,
+.demo-explanation li,
+.closing-inner p,
+.demo-login-callout span,
+.form-divider,
+.form-error { font-size: 14px; }
+.login-card input,
+.login-card select,
+.login-card textarea { font-size: 16px; }
+
+.app-frame { font-size: 16px; line-height: 1.55; }
+.app-frame :is(button, input, textarea, select) { font-size: 15px; }
+.app-frame :is(p, label, time, dt, dd, legend) { font-size: 14px; line-height: 1.55; }
+.app-frame :is(span, em, b) { font-size: 14px; }
+.app-frame small { font-size: 13px; line-height: 1.45; }
+.app-frame strong { font-size: 15px; line-height: 1.4; }
+.app-frame :is(input, textarea, select) { font-size: 16px; }
+.app-frame :is(h3, h4) { font-size: 17px; line-height: 1.4; }
+.app-frame .page-header h1 { font-size: 28px; }
+.app-frame .page-header p { font-size: 15px; }
+.app-frame .summary-cards strong { font-size: 26px; }
+.app-frame .summary-cards strong em { font-size: 13px; }
+.app-frame .case-list-item > strong { font-size: 16px; }
+.app-frame .detail-title h2 { font-size: 20px; }
+.app-frame .wizard-header h1 { font-size: 18px; }
+.app-frame .wizard-step-heading h2 { font-size: 28px; }
+.app-frame .paper-head strong { font-size: 18px; }
+.app-frame .app-navigation a { font-size: 15px; }
+.app-frame .demo-mode-pill { font-size: 13px; }
+.app-frame .user-mini-card > span,
+.app-frame .topbar-user > button > span { font-size: 13px; }
+.app-frame .user-mini-card strong,
+.app-frame .topbar-user > button strong { font-size: 14px; }
+.app-frame .notification-button span { font-size: 12px; }
+.app-frame .status-filters button span { font-size: 12px; }
+.app-frame .map-attribution { font-size: 12px; }
+.app-frame .detail-actions .button { font-size: 14px; }
+.app-frame :is(.inline-error, .toast, .settings-save-message, .lookup-message, .map-loading, .empty-cost, .cost-header) { font-size: 14px; line-height: 1.5; }
+.app-frame .information-banner { min-height: 60px; }
+.app-frame .information-banner strong { font-size: 15px; }
+.app-frame .information-banner span { font-size: 14px; }
+.app-frame .document-row { min-height: 78px; font-size: 14px; }
+.app-frame .document-row.header { min-height: 46px; font-size: 13px; }
+.app-frame .document-actions button { min-height: 42px; font-size: 13px; }
+.app-frame .settings-save-message { min-height: 52px; padding: 13px 16px; }
+
+@media (max-width: 760px) {
+  .app-frame .page-header h1 { font-size: 25px; }
+  .app-frame .wizard-step-heading h2 { font-size: 25px; }
+  .app-frame .mobile-view-switch button { font-size: 14px; }
+}
+
 
