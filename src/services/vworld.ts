@@ -1,6 +1,6 @@
-import { getToken } from "firebase/app-check";
 import { sampleParcels } from "../data/demo";
 import type { ParcelSnapshot } from "../types";
+import { apiUrl, authorizedApiHeaders } from "./api";
 import { getFirebaseServices } from "./firebase";
 
 export interface VWorldSearchResult {
@@ -19,28 +19,12 @@ export interface VWorldReverseAddress {
   roadAddress: string;
 }
 
-const apiBase = import.meta.env.VITE_API_BASE || "/api";
-
-export async function vworldAuthorizedHeaders(): Promise<HeadersInit> {
-  const services = getFirebaseServices();
-  if (!services) return {};
-  const headers: Record<string, string> = {};
-  if (services.auth.currentUser) headers.Authorization = `Bearer ${await services.auth.currentUser.getIdToken()}`;
-  if (services.appCheck) {
-    const token = await getToken(services.appCheck, false);
-    headers["X-Firebase-AppCheck"] = token.token;
-  }
-  return headers;
-}
-
-export function vworldApiUrl(path: string): string {
-  return new URL(`${apiBase}${path}`, window.location.origin).toString();
-}
+export { apiUrl as vworldApiUrl, authorizedApiHeaders as vworldAuthorizedHeaders };
 
 async function getJson(path: string, params: Record<string, string | number | boolean>): Promise<unknown> {
-  const url = new URL(vworldApiUrl(path));
+  const url = new URL(apiUrl(path));
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-  const response = await fetch(url, { headers: await vworldAuthorizedHeaders() });
+  const response = await fetch(url, { headers: await authorizedApiHeaders() });
   if (!response.ok) throw new Error(`VWorld 연결 오류 (${response.status})`);
   return response.json();
 }
