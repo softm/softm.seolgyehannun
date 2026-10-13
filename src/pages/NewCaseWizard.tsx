@@ -340,6 +340,7 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [draggedParcelId, setDraggedParcelId] = useState<string | null>(null);
   const selectedListRef = useRef<HTMLDivElement>(null);
+  const mapPanelRef = useRef<HTMLDivElement>(null);
   const previousParcelCountRef = useRef(caseRecord.parcels.length);
   const draggedParcelIdRef = useRef<string | null>(null);
 
@@ -463,6 +464,11 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
     if (target) reorderParcel(parcelId, target.id);
   }
 
+  function focusParcelOnMap(parcel: ParcelSnapshot) {
+    setMapFocus({ longitude: parcel.longitude, latitude: parcel.latitude, requestId: Date.now() });
+    if (!mapExpanded) requestAnimationFrame(() => mapPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
   function useCurrentLocation() {
     if (!navigator.geolocation) {
       setMessage("이 브라우저는 현재 위치를 지원하지 않습니다.");
@@ -538,8 +544,8 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
         <div className="address-search"><Search size={19} /><input value={query} onChange={(event) => { const nextQuery = event.target.value; setQuery(nextQuery); if (!nextQuery.trim()) { setResults([]); setMessage(""); } }} onKeyDown={(event) => { if (event.key === "Enter") void searchAddress(); if (event.key === "Escape") setResults([]); }} placeholder="예: 화성시 남양읍 신남리 145" aria-expanded={results.length > 0} aria-controls="parcel-search-results" /><button type="button" onClick={searchAddress} disabled={searching}>{searching ? <LoaderCircle className="spin" size={18} /> : "검색"}</button></div>
         {results.length > 0 && <div className="search-results" id="parcel-search-results" role="region" aria-label="주소 검색 결과"><div className="search-results-header"><strong>검색 결과 {results.length}건</strong><button type="button" onClick={() => setResults([])} aria-label="검색 결과 닫기"><X size={16} /> 닫기</button></div><div className="search-results-list" role="listbox">{results.map((result) => <button type="button" key={result.id} onClick={() => addByResult(result)}><span>{result.category === "parcel" ? "지번" : result.category === "road" ? "도로" : "장소"}</span><div><strong>{result.title}</strong><small>{result.address}{result.roadAddress && ` · ${result.roadAddress}`}</small></div><Plus size={18} /></button>)}</div></div>}
         {message && <div className="lookup-message" role="status" aria-live="polite"><CircleAlert size={17} />{message}</div>}
-        <div className="wizard-map"><ParcelMap parcels={caseRecord.parcels} focusLocation={mapFocus} interactive onMapClick={addByMap} /><button type="button" className="map-expand-button" onClick={() => { setResults([]); setMapExpanded(true); }}><Maximize2 size={17} /> 지도 크게 보기</button>{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />{locating ? "현재 위치의 주소 확인 중" : "필지 확인 중"}</div>}</div>
-        {mapExpanded && <div className="parcel-map-modal" role="dialog" aria-modal="true" aria-labelledby="expanded-map-title"><header><div><span>VWorld 지적도</span><h3 id="expanded-map-title">큰 지도에서 필지 추가</h3><p>지적도 영역을 누르면 선택한 필지 목록에 계속 추가됩니다.</p></div><button type="button" onClick={() => setMapExpanded(false)} autoFocus><Minimize2 size={18} /> 큰 지도 닫기</button></header><div className="parcel-map-modal-body"><div className="parcel-map-modal-map"><ParcelMap parcels={caseRecord.parcels} focusLocation={mapFocus} interactive onMapClick={addByMap} />{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />필지 확인 중</div>}</div><aside><div className="expanded-map-selection-head"><div><strong>선택한 필지</strong><span>첫 번째 필지가 대표 필지입니다.</span></div><b>{caseRecord.parcels.length}필지</b></div>{message && <div className="expanded-map-message" role="status"><CircleAlert size={16} />{message}</div>}{caseRecord.parcels.length ? <div className="expanded-map-selection-list">{caseRecord.parcels.map((parcel, index) => <article key={parcel.id}><span>{index + 1}</span><div><strong>{parcel.address}</strong><small>PNU {parcel.pnu || "확인 필요"}</small></div><button type="button" onClick={() => patchCase({ parcels: caseRecord.parcels.filter((item) => item.id !== parcel.id) })} aria-label={`${parcel.address} 제거`}><Trash2 size={16} /></button></article>)}</div> : <div className="expanded-map-empty"><MapPin size={28} /><strong>지도를 눌러 필지를 추가하세요</strong><span>선택한 경계는 분홍색으로 표시됩니다.</span></div>}</aside></div></div>}
+        <div ref={mapPanelRef} className="wizard-map"><ParcelMap parcels={caseRecord.parcels} focusLocation={mapFocus} interactive onMapClick={addByMap} /><button type="button" className="map-expand-button" onClick={() => { setResults([]); setMapExpanded(true); }}><Maximize2 size={17} /> 지도 크게 보기</button>{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />{locating ? "현재 위치의 주소 확인 중" : "필지 확인 중"}</div>}</div>
+        {mapExpanded && <div className="parcel-map-modal" role="dialog" aria-modal="true" aria-labelledby="expanded-map-title"><header><div><span>VWorld 지적도</span><h3 id="expanded-map-title">큰 지도에서 필지 추가</h3><p>지적도 영역을 누르면 선택한 필지 목록에 계속 추가됩니다.</p></div><button type="button" onClick={() => setMapExpanded(false)} autoFocus><Minimize2 size={18} /> 큰 지도 닫기</button></header><div className="parcel-map-modal-body"><div className="parcel-map-modal-map"><ParcelMap parcels={caseRecord.parcels} focusLocation={mapFocus} interactive onMapClick={addByMap} />{mapLoading && <div className="map-loading"><LoaderCircle className="spin" />필지 확인 중</div>}</div><aside><div className="expanded-map-selection-head"><div><strong>선택한 필지</strong><span>첫 번째 필지가 대표 필지입니다.</span></div><b>{caseRecord.parcels.length}필지</b></div>{message && <div className="expanded-map-message" role="status"><CircleAlert size={16} />{message}</div>}{caseRecord.parcels.length ? <div className="expanded-map-selection-list">{caseRecord.parcels.map((parcel, index) => <article key={parcel.id}><span>{index + 1}</span><button type="button" className="expanded-map-focus" onClick={() => focusParcelOnMap(parcel)}><strong>{parcel.address}</strong><small>PNU {parcel.pnu || "확인 필요"}</small><em><LocateFixed size={13} /> 지도에서 보기</em></button><button type="button" onClick={() => patchCase({ parcels: caseRecord.parcels.filter((item) => item.id !== parcel.id) })} aria-label={`${parcel.address} 제거`}><Trash2 size={16} /></button></article>)}</div> : <div className="expanded-map-empty"><MapPin size={28} /><strong>지도를 눌러 필지를 추가하세요</strong><span>선택한 경계는 분홍색으로 표시됩니다.</span></div>}</aside></div></div>}
       </section>
 
       <section className="wizard-card selected-parcels-card">
@@ -564,8 +570,7 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
                 <div className="parcel-order">{index + 1}</div>
                 <div>
                   <div className="parcel-role">{index === 0 ? "대표 필지" : "연접 필지"}{parcel.verifiedByUser && <span><Check size={12} /> 사용자 확인</span>}</div>
-                  <strong>{parcel.address}</strong>
-                  <small>PNU {parcel.pnu}</small>
+                  <button type="button" className="parcel-focus-button" onClick={() => focusParcelOnMap(parcel)}><span><strong>{parcel.address}</strong><small>PNU {parcel.pnu}</small></span><em><LocateFixed size={14} /> 지도에서 보기</em></button>
                   <div className="parcel-facts"><span>{parcel.category || "지목 확인 필요"}</span><span>{parcel.ledgerAreaM2?.toLocaleString("ko-KR") ?? "-"}㎡</span><span>{parcel.zoning.join(", ") || "용도지역 확인 필요"}</span></div>
                   <p>{parcel.source} · {formatSeoulDate(parcel.fetchedAt)} 조회</p>
                 </div>
