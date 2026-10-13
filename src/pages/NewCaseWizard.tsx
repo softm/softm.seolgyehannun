@@ -23,6 +23,7 @@ import {
   LoaderCircle,
   LocateFixed,
   MapPin,
+  GripVertical,
   Paperclip,
   Plus,
   Route,
@@ -334,6 +335,21 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
   const [locating, setLocating] = useState(false);
   const [mapFocus, setMapFocus] = useState<{ longitude: number; latitude: number; requestId: number } | null>(null);
   const [message, setMessage] = useState("");
+  const [draggedParcelId, setDraggedParcelId] = useState<string | null>(null);
+  const selectedListRef = useRef<HTMLDivElement>(null);
+  const previousParcelCountRef = useRef(caseRecord.parcels.length);
+  const draggedParcelIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const previousCount = previousParcelCountRef.current;
+    previousParcelCountRef.current = caseRecord.parcels.length;
+    if (caseRecord.parcels.length <= previousCount) return;
+    const frame = requestAnimationFrame(() => {
+      const list = selectedListRef.current;
+      list?.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [caseRecord.parcels.length]);
 
   async function searchAddress() {
     if (query.trim().length < 2) {
@@ -386,6 +402,48 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
       return;
     }
     patchCase({ parcels: next, jurisdictionName: next[0].jurisdictionName });
+  }
+
+  function reorderParcel(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    const next = [...caseRecord.parcels];
+    const sourceIndex = next.findIndex((parcel) => parcel.id === sourceId);
+    const targetIndex = next.findIndex((parcel) => parcel.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    patchCase({ parcels: next, jurisdictionName: next[0]?.jurisdictionName ?? caseRecord.jurisdictionName });
+  }
+
+  function startParcelDrag(event: React.PointerEvent<HTMLButtonElement>, parcelId: string) {
+    if (event.button !== 0) return;
+    draggedParcelIdRef.current = parcelId;
+    setDraggedParcelId(parcelId);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveParcelDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    const sourceId = draggedParcelIdRef.current;
+    if (!sourceId) return;
+    event.preventDefault();
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-parcel-id]");
+    const targetId = target?.dataset.parcelId;
+    if (targetId) reorderParcel(sourceId, targetId);
+  }
+
+  function finishParcelDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    draggedParcelIdRef.current = null;
+    setDraggedParcelId(null);
+  }
+
+  function moveParcelWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>, parcelId: string) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const index = caseRecord.parcels.findIndex((parcel) => parcel.id === parcelId);
+    const targetIndex = event.key === "ArrowUp" ? index - 1 : index + 1;
+    const target = caseRecord.parcels[targetIndex];
+    if (target) reorderParcel(parcelId, target.id);
   }
 
   function useCurrentLocation() {
@@ -468,7 +526,36 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
 
       <section className="wizard-card selected-parcels-card">
         <div className="card-title"><div><h3>선택한 필지</h3><p>첫 번째 필지가 대표 필지입니다.</p></div><span className="count-pill">{caseRecord.parcels.length}필지</span></div>
-        {caseRecord.parcels.length ? <div className="selected-parcel-list">{caseRecord.parcels.map((parcel, index) => <article key={parcel.id}><div className="parcel-order">{index + 1}</div><div><div className="parcel-role">{index === 0 ? "대표 필지" : "연접 필지"}{parcel.verifiedByUser && <span><Check size={12} /> 사용자 확인</span>}</div><strong>{parcel.address}</strong><small>PNU {parcel.pnu}</small><div className="parcel-facts"><span>{parcel.category || "지목 확인 필요"}</span><span>{parcel.ledgerAreaM2?.toLocaleString("ko-KR") ?? "-"}㎡</span><span>{parcel.zoning.join(", ") || "용도지역 확인 필요"}</span></div><p>{parcel.source} · {formatSeoulDate(parcel.fetchedAt)} 조회</p></div><button type="button" onClick={() => patchCase({ parcels: caseRecord.parcels.filter((item) => item.id !== parcel.id) })} aria-label={`${parcel.address} 제거`}><Trash2 size={17} /></button></article>)}</div> : <div className="empty-selection"><MapPin /><strong>아직 선택한 필지가 없습니다</strong><span>왼쪽에서 주소를 검색하거나 지도를 눌러보세요.</span>{!caseRecord.parcels.length && <button type="button" onClick={() => addParcel(sampleParcels[0])}>샘플 필지 추가</button>}</div>}
+        {caseRecord.parcels.length ? (
+          <div ref={selectedListRef} className="selected-parcel-list">
+            {caseRecord.parcels.map((parcel, index) => (
+              <article key={parcel.id} data-parcel-id={parcel.id} className={draggedParcelId === parcel.id ? "dragging" : ""}>
+                <button
+                  type="button"
+                  className="parcel-drag-handle"
+                  aria-label={`${parcel.address} 순서 이동. 위아래 방향키 또는 드래그로 이동`}
+                  title="드래그하거나 방향키로 순서 변경"
+                  onPointerDown={(event) => startParcelDrag(event, parcel.id)}
+                  onPointerMove={moveParcelDrag}
+                  onPointerUp={finishParcelDrag}
+                  onPointerCancel={finishParcelDrag}
+                  onKeyDown={(event) => moveParcelWithKeyboard(event, parcel.id)}
+                >
+                  <GripVertical size={18} />
+                </button>
+                <div className="parcel-order">{index + 1}</div>
+                <div>
+                  <div className="parcel-role">{index === 0 ? "대표 필지" : "연접 필지"}{parcel.verifiedByUser && <span><Check size={12} /> 사용자 확인</span>}</div>
+                  <strong>{parcel.address}</strong>
+                  <small>PNU {parcel.pnu}</small>
+                  <div className="parcel-facts"><span>{parcel.category || "지목 확인 필요"}</span><span>{parcel.ledgerAreaM2?.toLocaleString("ko-KR") ?? "-"}㎡</span><span>{parcel.zoning.join(", ") || "용도지역 확인 필요"}</span></div>
+                  <p>{parcel.source} · {formatSeoulDate(parcel.fetchedAt)} 조회</p>
+                </div>
+                <button className="parcel-remove" type="button" onClick={() => patchCase({ parcels: caseRecord.parcels.filter((item) => item.id !== parcel.id) })} aria-label={`${parcel.address} 제거`}><Trash2 size={17} /></button>
+              </article>
+            ))}
+          </div>
+        ) : <div className="empty-selection"><MapPin /><strong>아직 선택한 필지가 없습니다</strong><span>왼쪽에서 주소를 검색하거나 지도를 눌러보세요.</span>{!caseRecord.parcels.length && <button type="button" onClick={() => addParcel(sampleParcels[0])}>샘플 필지 추가</button>}</div>}
         {profile && <div className={`region-profile ${profile.status}`}><div><strong>{profile.jurisdictionName} 지역 프로필</strong><span>{profile.status === "verified-sample" ? "초기 검증 표본" : "미검증 지역"}</span></div><p>{profile.guidance}</p>{profile.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}</div>}
       </section>
     </div>
