@@ -29,6 +29,7 @@ interface ParcelMapProps {
   cases?: CaseRecord[];
   parcels?: ParcelSnapshot[];
   selectedCaseId?: string | null;
+  selectedCaseFitPadding?: [number, number, number, number];
   interactive?: boolean;
   focusLocation?: MapFocusLocation | null;
   onMapClick?: (longitude: number, latitude: number) => void;
@@ -37,6 +38,7 @@ interface ParcelMapProps {
 
 const EMPTY_CASES: CaseRecord[] = [];
 const EMPTY_PARCELS: ParcelSnapshot[] = [];
+const DEFAULT_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [72, 72, 72, 72];
 const geoJson = new GeoJSON();
 const normalSelectionStyle = new Style({
   fill: new Fill({ color: "rgba(30, 133, 98, 0.20)" }),
@@ -65,6 +67,7 @@ export function ParcelMap({
   cases = EMPTY_CASES,
   parcels = EMPTY_PARCELS,
   selectedCaseId,
+  selectedCaseFitPadding = DEFAULT_SELECTED_CASE_FIT_PADDING,
   interactive = false,
   focusLocation = null,
   onMapClick,
@@ -250,7 +253,7 @@ export function ParcelMap({
         if (geometry) extendExtent(selectedExtent, geometry.getExtent());
       });
       mapRef.current?.getView().fit(selectedExtent, {
-        padding: [72, 72, 72, 72],
+        padding: selectedCaseFitPadding,
         maxZoom: 18,
         duration: 500,
       });
@@ -267,7 +270,7 @@ export function ParcelMap({
       });
     }
     mapRef.current?.getLayers().changed();
-  }, [cases, parcels, selectedCaseId]);
+  }, [cases, parcels, selectedCaseId, selectedCaseFitPadding]);
 
   useEffect(() => {
     if (!focusLocation) return;
