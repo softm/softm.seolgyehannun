@@ -37,6 +37,17 @@ interface ParcelMapProps {
 const EMPTY_CASES: CaseRecord[] = [];
 const EMPTY_PARCELS: ParcelSnapshot[] = [];
 const geoJson = new GeoJSON();
+const normalSelectionStyle = new Style({
+  fill: new Fill({ color: "rgba(30, 133, 98, 0.20)" }),
+  stroke: new Stroke({ color: "#0b7555", width: 4 }),
+});
+const imagerySelectionStyle = [
+  new Style({ stroke: new Stroke({ color: "rgba(255, 255, 255, 0.96)", width: 9 }) }),
+  new Style({
+    fill: new Fill({ color: "rgba(245, 29, 118, 0.22)" }),
+    stroke: new Stroke({ color: "#f51d76", width: 5 }),
+  }),
+];
 
 function parcelFeature(parcel: ParcelSnapshot, parcelIndex: number) {
   const boundaryGeometry = parcel.boundary
@@ -71,10 +82,12 @@ export function ParcelMap({
   const interactiveRef = useRef(interactive);
   const onMapClickRef = useRef(onMapClick);
   const onCaseSelectRef = useRef(onCaseSelect);
+  const mapModeRef = useRef(mapMode);
   selectedCaseIdRef.current = selectedCaseId;
   interactiveRef.current = interactive;
   onMapClickRef.current = onMapClick;
   onCaseSelectRef.current = onCaseSelect;
+  mapModeRef.current = mapMode;
 
   useEffect(() => {
     if (!targetRef.current || mapRef.current) return;
@@ -148,11 +161,7 @@ export function ParcelMap({
         const selected = feature.get("caseId") === selectedCaseIdRef.current;
         const geometryType = feature.getGeometry()?.getType();
         if (geometryType === "Polygon" || geometryType === "MultiPolygon") {
-          const primary = feature.get("parcelIndex") === 0;
-          return new Style({
-            fill: new Fill({ color: primary ? "rgba(0, 69, 65, 0.36)" : "rgba(25, 166, 154, 0.30)" }),
-            stroke: new Stroke({ color: primary ? "#004541" : "#087f76", width: primary ? 3 : 2.5 }),
-          });
+          return mapModeRef.current === "normal" ? normalSelectionStyle : imagerySelectionStyle;
         }
         return new Style({
           image: new CircleStyle({
@@ -209,6 +218,7 @@ export function ParcelMap({
     satelliteLayerRef.current?.setVisible(mapMode !== "normal");
     hybridLayerRef.current?.setVisible(mapMode === "satellite");
     cadastralLayerRef.current?.setVisible(mapMode === "cadastral");
+    vectorSourceRef.current.changed();
   }, [mapMode]);
 
   useEffect(() => {
