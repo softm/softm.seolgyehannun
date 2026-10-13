@@ -1597,3 +1597,4 @@ body { font-size: 16px; line-height: 1.55; }
   .case-inspector { width: 100%; height: min(84vh, 760px); top: auto; bottom: 0; border-radius: 18px 18px 0 0; }
   .case-inspector .case-detail-card { border-radius: 18px 18px 0 0; }
   .case-inspector .detail-drag-handle { width: 42px; height: 4px; margin: 7px auto 0; border-radius: 3px; background: #d0d7dc; display: block; }
+}
