@@ -50,6 +50,8 @@ pnpm test:emulator
 
 ## Firebase 연결
 
+현재 운영 프로젝트는 `softm-seolgyehannun`이며 Firestore·Storage·Functions·Scheduler는 서울 리전에 배포되어 있습니다. 이메일/비밀번호와 Google 로그인을 사용할 수 있고, VWorld 키는 Firebase Secret Manager에서만 Functions에 주입됩니다. App Check는 사이트 키 등록 전 모니터링 단계(`ENFORCE_APP_CHECK=false`)로 운영하며, 정상 트래픽을 확인한 뒤 같은 파라미터를 `true`로 바꿔 강제합니다.
+
 1. 새 Firebase 프로젝트를 만들고 Firestore 데이터베이스 위치를 `asia-northeast3`로 선택합니다.
 2. Authentication에서 Google 및 이메일/비밀번호 로그인을 활성화하고 지원 이메일을 설정합니다.
 3. `.env.example`을 `.env.local`로 복사해 웹 앱 구성을 입력합니다.
@@ -65,8 +67,9 @@ pnpm exec firebase functions:secrets:set VWORLD_API_KEY
 Functions의 일반 파라미터는 `functions/.env.<project-id>`에 둡니다.
 
 ```dotenv
-ALLOWED_ORIGINS=https://<project-id>.web.app
-VWORLD_DOMAIN=<project-id>.web.app
+ALLOWED_ORIGINS=https://<custom-domain>,https://<project-id>.web.app
+VWORLD_DOMAIN=<VWorld 콘솔에 승인된 도메인>
+ENFORCE_APP_CHECK=false
 ```
 
 VWorld 콘솔에도 같은 허용 도메인을 등록해야 합니다. 실제 민원 조회 제공자가 준비되기 전까지 접수 조회는 화면과 응답 모두 `샘플 조회`로 표시됩니다.
@@ -96,13 +99,15 @@ organizations/{organizationId}
 
 ## 배포
 
-GitHub `main` 브랜치에 푸시하면 GitHub Actions가 검증과 빌드를 수행한 뒤 Pages에 정적 체험판을 배포합니다.
+GitHub `main` 브랜치에 푸시하면 GitHub Actions가 검증과 빌드를 수행한 뒤 Pages에 운영 웹 앱을 배포합니다. Pages와 Firebase Hosting 모두 같은 Firebase 프로젝트와 서울 Functions API를 사용하며, 샘플 업무 공간도 별도로 유지합니다.
 
 - 저장소: <https://github.com/softm/softm.seolgyehannun>
 - 서비스: <https://seolgyehannun.designboard.net/>
 - GitHub Pages 기본 주소: <https://softm.github.io/softm.seolgyehannun/>
+- Firebase Hosting: <https://softm-seolgyehannun.web.app/>
+- Firebase Console: <https://console.firebase.google.com/project/softm-seolgyehannun/overview>
 
-Pages 빌드는 상대 자산 경로와 Hash Router를 사용하므로 커스텀 도메인과 GitHub Pages 기본 주소에서 모두 동작합니다. Firebase 비밀값 없이 샘플 업무 공간을 제공하며, 실제 조직 데이터·로그인·파일 저장·Cloud Functions를 사용하려면 아래 Firebase 운영 배포를 별도로 연결해야 합니다.
+Pages 빌드는 상대 자산 경로와 Hash Router를 사용하므로 커스텀 도메인과 GitHub Pages 기본 주소에서 모두 동작합니다. `.env.production`에는 브라우저에서 원래 공개되는 Firebase 웹 앱 식별값과 API 주소만 두며, VWorld·SMTP 같은 비밀값은 포함하지 않습니다.
 
 먼저 Emulator에서 검증한 뒤 Preview Channel을 사용합니다.
 
@@ -118,12 +123,12 @@ pnpm deploy:preview
 pnpm deploy
 ```
 
-Functions와 Scheduler 배포에는 Blaze 요금제와 결제 계정이 필요합니다. 운영 전 비용 알림, 사용량 한도, App Check 강제 여부, VWorld 허용 도메인을 함께 확인하세요.
+Functions와 Scheduler 배포에는 Blaze 요금제와 결제 계정이 필요합니다. 현재 프로젝트에는 월 10,000원 기준 50%·90%·100% 비용 알림과 7일 지난 Functions 컨테이너 이미지 정리 정책이 설정되어 있습니다.
 
 ## 저장소와 비밀정보
 
-- `.env`, Firebase 로컬 상태, 빌드 산출물, 의존성은 Git에서 제외합니다.
-- API 키와 SMTP 자격증명은 Secret Manager에만 저장합니다.
+- `.env`, Firebase 로컬 상태, 빌드 산출물, 의존성은 Git에서 제외합니다. 공개 웹 앱 설정만 `.env.production`에 둡니다.
+- VWorld 키와 SMTP 자격증명은 Secret Manager에만 저장합니다. Firebase 웹 API 키는 인증 비밀이 아니며 Security Rules·허용 도메인·App Check로 접근 경계를 구성합니다.
 - 첨부와 생성 문서는 공개 URL을 만들지 않습니다.
 - `DWG`, `DXF`, `DOCX`, `HWPX`, `XLSX`는 최대 50MB까지 비공개 보관하며, 실행 파일은 허용하지 않습니다.
 - 영구 오프라인 캐시는 사용자가 신뢰 기기에서 명시적으로 켠 경우에만 사용합니다.
