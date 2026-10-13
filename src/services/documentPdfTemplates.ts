@@ -78,6 +78,78 @@ function textElement(
   return element;
 }
 
+function developmentValue(
+  page: HTMLElement,
+  fieldId: string,
+  content: string,
+  options: {
+    left: number;
+    top: number;
+    width: number;
+    height?: number;
+    fontSize?: number;
+    minFontSize?: number;
+    maxLines?: number;
+    align?: "left" | "center" | "right";
+    weight?: number;
+    lineHeight?: number;
+  },
+): HTMLElement {
+  const preferredFontSize = options.fontSize ?? 12.2;
+  const visualLength = Array.from(content).reduce((sum, character) => sum + (/^[\x00-\x7F]$/.test(character) ? 0.56 : 1), 0);
+  const availableWidth = portraitSize.width * (options.width / 100);
+  const maxLines = options.maxLines ?? 1;
+  const estimatedCapacity = (availableWidth / (preferredFontSize * 0.94)) * maxLines;
+  const fittedFontSize = visualLength > estimatedCapacity
+    ? Math.max(options.minFontSize ?? 9.2, preferredFontSize * (estimatedCapacity / visualLength))
+    : preferredFontSize;
+  const element = textElement(page, content, {
+    ...options,
+    fontSize: fittedFontSize,
+    weight: options.weight ?? 680,
+    lineHeight: options.lineHeight ?? 1.15,
+  });
+  element.dataset.pdfField = fieldId;
+  Object.assign(element.style, {
+    color: "#000000",
+    letterSpacing: "-0.012em",
+    textRendering: "geometricPrecision",
+  });
+  if (options.height) {
+    const span = document.createElement("span");
+    span.textContent = element.textContent;
+    span.style.width = "100%";
+    element.textContent = "";
+    element.append(span);
+    Object.assign(element.style, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: options.align === "center" ? "center" : options.align === "right" ? "flex-end" : "flex-start",
+    });
+  }
+  return element;
+}
+
+function addDevelopmentDate(
+  page: HTMLElement,
+  fieldId: string,
+  source: string,
+  positions: Array<{ left: number; width: number }>,
+  top: number,
+): void {
+  koreanDateParts(source).forEach((part, index) => {
+    developmentValue(page, `${fieldId}-${index}`, part, {
+      ...positions[index],
+      top,
+      height: 1.45,
+      fontSize: 11.3,
+      minFontSize: 10,
+      align: "right",
+      weight: 680,
+    });
+  });
+}
+
 function fieldMap(model: CaseDocumentModel): Map<string, string> {
   return new Map(model.sections.flatMap((section) => section.fields.map((field) => [field.id, field.value] as const)));
 }
@@ -139,36 +211,36 @@ function buildDevelopmentApplicationPages(caseRecord: CaseRecord, model: CaseDoc
 
   const actionTypes = value(fields, "actionTypes");
   [
-    ["공작물설치", 10.7],
-    ["토지형질변경", 29.1],
-    ["토석채취", 48.0],
-    ["토지분할", 67.2],
-    ["물건적치", 85.6],
+    ["공작물설치", 11.3],
+    ["토지형질변경", 26.3],
+    ["토석채취", 44.15],
+    ["토지분할", 59.2],
+    ["물건적치", 74.35],
   ].forEach(([label, left]) => {
-    if (actionSelected(actionTypes, String(label))) textElement(front, "✓", { left: Number(left), top: 16.75, width: 2.6, fontSize: 14, weight: 800, align: "center" });
+    if (actionSelected(actionTypes, String(label))) developmentValue(front, `action-${String(label)}`, "✓", { left: Number(left), top: 16.48, width: 2.6, height: 1.9, fontSize: 15, minFontSize: 15, weight: 850, align: "center" });
   });
 
   const applicantName = [value(fields, "applicantName"), value(fields, "representativeName")].filter(Boolean).join(" / ");
-  textElement(front, applicantName, { left: 20.3, top: 21.2, width: 38.2, fontSize: 10.5, align: "center" });
-  textElement(front, value(fields, "registrationNumber"), { left: 64.2, top: 21.2, width: 24.0, fontSize: 10.5, align: "center" });
-  textElement(front, value(fields, "applicantAddress"), { left: 16.1, top: 23.8, width: 73.0, fontSize: 10 });
-  textElement(front, value(fields, "applicantPhone"), { left: 61.2, top: 25.9, width: 24.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "siteAddress"), { left: 17.0, top: 30.9, width: 45.0, fontSize: 9.5 });
-  textElement(front, value(fields, "landCategory"), { left: 69.0, top: 30.9, width: 18.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "zoning"), { left: 17.0, top: 33.5, width: 45.0, fontSize: 9.5 });
-  textElement(front, value(fields, "district"), { left: 69.0, top: 33.5, width: 18.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "slopeDegree"), { left: 34.0, top: 41.15, width: 19.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "soilType"), { left: 70.0, top: 41.15, width: 17.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "buriedRockVolumeM3"), { left: 34.0, top: 43.65, width: 19.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "mainTreeSpecies"), { left: 34.0, top: 46.2, width: 19.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "standingForestAreaM2"), { left: 34.0, top: 48.7, width: 19.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "unforestedAreaM2"), { left: 70.0, top: 48.7, width: 17.0, fontSize: 10, align: "center" });
-  textElement(front, value(fields, "applicationAreaM2"), { left: 34.0, top: 51.2, width: 45.0, fontSize: 10 });
-  textElement(front, value(fields, "purpose"), { left: 17.0, top: 68.75, width: 72.0, height: 2.2, fontSize: 10 });
-  addOfficialDate(front, value(fields, "startDate"), [{ left: 28.9, width: 6.6 }, { left: 37.5, width: 3.7 }, { left: 43.2, width: 4.5 }], 71.0);
-  addOfficialDate(front, value(fields, "endDate"), [{ left: 55.0, width: 7.1 }, { left: 64.0, width: 4.2 }, { left: 70.0, width: 4.2 }], 71.0);
-  addOfficialDate(front, seoulToday(), [{ left: 67.4, width: 5.0 }, { left: 74.2, width: 5.7 }, { left: 81.8, width: 5.8 }], 76.15);
-  textElement(front, applicantName, { left: 53.5, top: 78.05, width: 25.5, fontSize: 10, align: "center" });
+  developmentValue(front, "applicantName", applicantName, { left: 16.2, top: 21.05, width: 44.2, height: 1.65, fontSize: 12.4, minFontSize: 10.2, align: "center" });
+  developmentValue(front, "registrationNumber", value(fields, "registrationNumber"), { left: 61.2, top: 21.05, width: 28.7, height: 1.65, fontSize: 12.2, minFontSize: 10.2, align: "center" });
+  developmentValue(front, "applicantAddress", value(fields, "applicantAddress"), { left: 16.2, top: 24.35, width: 35.2, height: 2.45, fontSize: 11.6, minFontSize: 9.5, maxLines: 2, lineHeight: 1.12 });
+  developmentValue(front, "applicantPhone", value(fields, "applicantPhone"), { left: 71.5, top: 25.25, width: 17.5, height: 1.45, fontSize: 12.1, minFontSize: 10.2, align: "center" });
+  developmentValue(front, "siteAddress", value(fields, "siteAddress"), { left: 18.2, top: 30.4, width: 45.7, height: 2.45, fontSize: 11.4, minFontSize: 9.2, maxLines: 2, lineHeight: 1.1 });
+  developmentValue(front, "landCategory", value(fields, "landCategory"), { left: 70.1, top: 30.55, width: 18.8, height: 2.1, fontSize: 12, minFontSize: 10, align: "center" });
+  developmentValue(front, "zoning", value(fields, "zoning"), { left: 18.2, top: 33.0, width: 45.7, height: 2.25, fontSize: 11.8, minFontSize: 9.6, maxLines: 2, lineHeight: 1.1 });
+  developmentValue(front, "district", value(fields, "district"), { left: 70.1, top: 33.1, width: 18.8, height: 2.1, fontSize: 12, minFontSize: 10, align: "center" });
+  developmentValue(front, "slopeDegree", value(fields, "slopeDegree"), { left: 43.0, top: 40.75, width: 20.3, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "soilType", value(fields, "soilType"), { left: 76.0, top: 40.75, width: 13.0, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "buriedRockVolumeM3", value(fields, "buriedRockVolumeM3"), { left: 43.0, top: 43.25, width: 20.3, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "mainTreeSpecies", value(fields, "mainTreeSpecies"), { left: 43.0, top: 45.75, width: 20.3, height: 2.2, fontSize: 12.2, minFontSize: 10.2, align: "center" });
+  developmentValue(front, "standingForestAreaM2", value(fields, "standingForestAreaM2"), { left: 43.0, top: 48.3, width: 20.3, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "unforestedAreaM2", value(fields, "unforestedAreaM2"), { left: 76.0, top: 48.3, width: 13.0, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "applicationAreaM2", value(fields, "applicationAreaM2"), { left: 43.0, top: 50.85, width: 20.3, height: 2.15, fontSize: 12.2, minFontSize: 10.5, align: "center" });
+  developmentValue(front, "purpose", value(fields, "purpose"), { left: 24.8, top: 68.38, width: 64.0, height: 2.05, fontSize: 11.5, minFontSize: 9.5, maxLines: 2, lineHeight: 1.08 });
+  addDevelopmentDate(front, "startDate", value(fields, "startDate"), [{ left: 28.9, width: 6.6 }, { left: 37.5, width: 3.7 }, { left: 43.2, width: 4.5 }], 71.05);
+  addDevelopmentDate(front, "endDate", value(fields, "endDate"), [{ left: 55.0, width: 7.1 }, { left: 64.0, width: 4.2 }, { left: 70.0, width: 4.2 }], 71.05);
+  addDevelopmentDate(front, "applicationDate", seoulToday(), [{ left: 67.4, width: 5.0 }, { left: 74.2, width: 5.7 }, { left: 81.8, width: 5.8 }], 75.95);
+  developmentValue(front, "applicantSignature", applicantName, { left: 53.5, top: 77.7, width: 25.5, height: 1.7, fontSize: 11.5, minFontSize: 9.5, align: "center" });
   const back = createPage("portrait", "official-development-form");
   const backImage = templateAssetUrl("development-application-page-2.png");
   back.dataset.backgroundImage = backImage;
@@ -177,6 +249,105 @@ function buildDevelopmentApplicationPages(caseRecord: CaseRecord, model: CaseDoc
     backgroundRepeat: "no-repeat",
     backgroundSize: "100% 100%",
   });
+  return [{ element: front, orientation: "portrait" }, { element: back, orientation: "portrait" }];
+}
+
+function buildForestApplicationPages(model: CaseDocumentModel): ReferencePdfPage[] {
+  const fields = fieldMap(model);
+  const front = createPage("portrait", "official-forest-form");
+  const frontImage = templateAssetUrl("forest-application-page-1.png");
+  front.dataset.backgroundImage = frontImage;
+  Object.assign(front.style, {
+    backgroundImage: `url("${frontImage}")`,
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "100% 100%",
+  });
+
+  const applicationKind = value(fields, "applicationKind");
+  if (applicationKind === "new") {
+    textElement(front, "✓", { left: 41, top: 2.35, width: 3, fontSize: 14, weight: 800, align: "center" });
+    textElement(front, "✓", { left: 35.3, top: 65.45, width: 2.5, fontSize: 12, weight: 800, align: "center" });
+  }
+  if (applicationKind === "change") {
+    textElement(front, "✓", { left: 41, top: 4.75, width: 3, fontSize: 14, weight: 800, align: "center" });
+    textElement(front, "✓", { left: 42.8, top: 65.45, width: 2.5, fontSize: 12, weight: 800, align: "center" });
+  }
+
+  [
+    ["applicantName", 21.3, 13.3, 44],
+    ["registrationNumber", 67, 13.3, 21],
+    ["applicantAddress", 21.3, 16.25, 44],
+    ["applicantPhone", 67, 16.25, 21],
+    ["forestRightRelation", 21.3, 19.45, 67],
+    ["ownerName", 21.3, 23.15, 44],
+    ["ownerBirthDate", 67, 23.15, 21],
+    ["ownerAddress", 21.3, 26.15, 44],
+    ["ownerPhone", 67, 26.15, 21],
+  ].forEach(([id, left, top, width]) => {
+    textElement(front, value(fields, String(id)), { left: Number(left), top: Number(top), width: Number(width), fontSize: 9.2, align: "center" });
+  });
+
+  [34.55, 37.35, 39.85].forEach((top, index) => {
+    const row = index + 1;
+    [
+      [`forestParcel${row}Address`, 21, 16],
+      [`forestParcel${row}LotNumber`, 37.6, 8.7],
+      [`forestParcel${row}Category`, 47.2, 8.4],
+      [`forestParcel${row}AreaTotalM2`, 56.4, 8.6],
+      [`forestParcel${row}ForestryAreaM2`, 65.5, 8.1],
+      [`forestParcel${row}PublicAreaM2`, 74.2, 7.6],
+      [`forestParcel${row}SemiConservationAreaM2`, 82.2, 7.5],
+    ].forEach(([id, left, width]) => {
+      textElement(front, value(fields, String(id)), { left: Number(left), top, width: Number(width), fontSize: 8.1, align: "center" });
+    });
+  });
+
+  [
+    ["fellSpecies", 21.4, 6.9],
+    ["fellCount", 28.5, 6.7],
+    ["fellVolumeM3", 35.7, 6.2],
+    ["excavatedSpecies", 42.2, 6.8],
+    ["excavatedCount", 49.2, 6.7],
+    ["excavatedVolumeM3", 56, 6.2],
+    ["stoneTotalM3", 62.6, 6.1],
+    ["stoneMaterialM3", 68.9, 6.1],
+    ["soilM3", 75.5, 13.5],
+  ].forEach(([id, left, width]) => {
+    textElement(front, value(fields, String(id)), { left: Number(left), top: 46.7, width: Number(width), fontSize: 8.1, align: "center" });
+  });
+
+  textElement(front, value(fields, "purpose"), { left: 21.3, top: 50.9, width: 31, height: 2.7, fontSize: 8.7, align: "center" });
+  const period = [formatKoreanDate(value(fields, "startDate")), formatKoreanDate(value(fields, "endDate"))].filter(Boolean).join(" ~ ");
+  textElement(front, period, { left: 68.3, top: 50.9, width: 20.7, height: 2.7, fontSize: 8.1, align: "center" });
+
+  const payment = value(fields, "replacementForestChargePayment");
+  if (payment === "before-permit") textElement(front, "✓", { left: 22.9, top: 52.8, width: 2.4, fontSize: 12, weight: 800, align: "center" });
+  if (payment === "after-permit-conditional") textElement(front, "✓", { left: 22.9, top: 54.7, width: 2.4, fontSize: 12, weight: 800, align: "center" });
+
+  [
+    ["previousDescription", 21.2, 22],
+    ["changedDescription", 43.8, 23],
+    ["changeReason", 68.3, 20.5],
+  ].forEach(([id, left, width]) => {
+    textElement(front, value(fields, String(id)), { left: Number(left), top: 60.1, width: Number(width), height: 3.4, fontSize: 8.2, align: "center" });
+  });
+
+  addOfficialDate(front, value(fields, "applicationDate") || seoulToday(), [
+    { left: 77, width: 4.2 }, { left: 82.7, width: 3.1 }, { left: 88, width: 3.1 },
+  ], 69.1);
+  textElement(front, value(fields, "signerName"), { left: 52.5, top: 72, width: 27, fontSize: 9.2, align: "center" });
+
+  const back = createPage("portrait", "official-forest-form");
+  const backImage = templateAssetUrl("forest-application-page-2.png");
+  back.dataset.backgroundImage = backImage;
+  Object.assign(back.style, {
+    backgroundImage: `url("${backImage}")`,
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "100% 100%",
+  });
+  if (value(fields, "consentToLivestockRegistrationLookup") === "yes") {
+    textElement(back, value(fields, "consentSignerName"), { left: 55, top: 95, width: 28, fontSize: 9.2, align: "center" });
+  }
   return [{ element: front, orientation: "portrait" }, { element: back, orientation: "portrait" }];
 }
 
@@ -423,6 +594,8 @@ export function buildReferencePdfPages(caseRecord: CaseRecord, model: CaseDocume
   switch (model.templateId) {
     case "development-application":
       return buildDevelopmentApplicationPages(caseRecord, model);
+    case "forest-application":
+      return buildForestApplicationPages(model);
     case "area-statement":
       return buildAreaStatementPage(caseRecord);
     case "business-plan":

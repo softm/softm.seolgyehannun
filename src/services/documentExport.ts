@@ -59,7 +59,92 @@ export async function exportCaseDocx(caseRecord: CaseRecord, templateId?: string
   });
   const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [];
 
+  const appendForestApplicationDocx = (model: CaseDocumentModel, modelIndex: number) => {
+    const fields = new Map(model.sections.flatMap((section) => section.fields.map((field) => [field.id, field.value === "작성 필요" ? "" : field.value] as const)));
+    const field = (id: string) => fields.get(id) ?? "";
+    const mark = (selected: boolean) => selected ? "☑" : "☐";
+    const officialCell = (text: string, options: { header?: boolean; span?: number } = {}) => new TableCell({
+      columnSpan: options.span,
+      shading: options.header ? { type: ShadingType.SOLID, fill: "E6E6E6", color: "auto" } : undefined,
+      margins: { top: 70, bottom: 70, left: 90, right: 90 },
+      children: [new Paragraph({
+        alignment: options.header ? AlignmentType.CENTER : AlignmentType.LEFT,
+        children: [new TextRun({ text: text || " ", bold: options.header, font: bodyFont, size: 17 })],
+      })],
+    });
+    const period = [field("startDate"), field("endDate")].filter(Boolean).join(" ~ ");
+    children.push(
+      new Paragraph({
+        text: "산지전용 허가·변경허가 신청서",
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER,
+        pageBreakBefore: modelIndex > 0,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({
+          text: `${mark(field("applicationKind") === "new")} 허가    ${mark(field("applicationKind") === "change")} 변경허가`,
+          bold: true,
+          font: bodyFont,
+          size: 22,
+        })],
+        spacing: { after: 120 },
+      }),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [new TextRun({ text: "산지관리법 시행규칙 별지 제3호서식 · 개정 2026. 6. 24.", font: bodyFont, size: 15, color: "555555" })],
+        spacing: { after: 80 },
+      }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: [officialCell("신청인", { header: true }), officialCell("성명·명칭"), officialCell(field("applicantName")), officialCell("주민·법인등록번호", { header: true }), officialCell(field("registrationNumber"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("주소"), officialCell(field("applicantAddress")), officialCell("전화번호", { header: true }), officialCell(field("applicantPhone"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("해당 산지에 대한 권리관계"), officialCell(field("forestRightRelation"), { span: 3 })] }),
+        new TableRow({ children: [officialCell("산지 소유자", { header: true }), officialCell("성명"), officialCell(field("ownerName")), officialCell("생년월일", { header: true }), officialCell(field("ownerBirthDate"))] }),
+        new TableRow({ children: [officialCell("", { header: true }), officialCell("주소"), officialCell(field("ownerAddress")), officialCell("전화번호", { header: true }), officialCell(field("ownerPhone"))] }),
+      ] }),
+      new Paragraph({ text: "전용대상 산지", heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 180, after: 70 } }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ tableHeader: true, children: ["소재지", "지번", "지목", "면적 계(㎡)", "임업용(㎡)", "공익용(㎡)", "준보전(㎡)"].map((label) => officialCell(label, { header: true })) }),
+        ...[1, 2, 3].map((row) => new TableRow({ children: [
+          officialCell(field(`forestParcel${row}Address`)), officialCell(field(`forestParcel${row}LotNumber`)), officialCell(field(`forestParcel${row}Category`)),
+          officialCell(field(`forestParcel${row}AreaTotalM2`)), officialCell(field(`forestParcel${row}ForestryAreaM2`)),
+          officialCell(field(`forestParcel${row}PublicAreaM2`)), officialCell(field(`forestParcel${row}SemiConservationAreaM2`)),
+        ] })),
+      ] }),
+      new Paragraph({ text: "부산물 생산현황", heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 180, after: 70 } }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ tableHeader: true, children: ["벌채 수종", "본수", "부피", "굴취 수종", "본수", "부피", "토석 계", "석재", "토사"].map((label) => officialCell(label, { header: true })) }),
+        new TableRow({ children: ["fellSpecies", "fellCount", "fellVolumeM3", "excavatedSpecies", "excavatedCount", "excavatedVolumeM3", "stoneTotalM3", "stoneMaterialM3", "soilM3"].map((id) => officialCell(field(id))) }),
+      ] }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ children: [officialCell("전용목적", { header: true }), officialCell(field("purpose")), officialCell("전용기간", { header: true }), officialCell(period)] }),
+        new TableRow({ children: [officialCell("대체산림자원조성비 납부", { header: true }), officialCell(`${mark(field("replacementForestChargePayment") === "before-permit")} 허가 전 납부\n${mark(field("replacementForestChargePayment") === "after-permit-conditional")} 납부기한 내 납부 조건으로 허가 후 납부`, { span: 3 })] }),
+      ] }),
+      new Paragraph({ text: "변경사항", heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 180, after: 70 } }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+        new TableRow({ tableHeader: true, children: [officialCell("변경 전", { header: true }), officialCell("변경 후", { header: true }), officialCell("사유", { header: true })] }),
+        new TableRow({ children: [officialCell(field("previousDescription")), officialCell(field("changedDescription")), officialCell(field("changeReason"))] }),
+      ] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${field("applicationDate")}  신청인 ${field("signerName")} (서명 또는 인)`, font: bodyFont, size: 18 })], spacing: { before: 180 } }),
+      new Paragraph({ text: "첨부서류 및 행정정보 공동이용", heading: HeadingLevel.TITLE, pageBreakBefore: true, alignment: AlignmentType.CENTER, spacing: { after: 160 } }),
+      ...[
+        "사업계획서(산지전용 목적·기간·이용계획, 입목·대나무 및 토석 처리계획, 피해방지계획 포함)",
+        "산지의 소유권 또는 사용·수익권을 증명할 수 있는 서류",
+        "지형도·지적도·실측도 및 산림조사서 등 해당 서류",
+        "복구계획서, 표고·평균경사도조사서, 재해위험성 검토의견서 등 조건부 서류",
+        "그 밖에 산지관리법 시행규칙 별지 제3호서식 뒤쪽에서 정한 서류",
+      ].map((text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 80 } })),
+      new Paragraph({ text: `행정정보 공동이용: ${field("consentToLivestockRegistrationLookup") === "yes" ? "동의함" : "동의하지 않음"}    신청인 ${field("consentToLivestockRegistrationLookup") === "yes" ? field("consentSignerName") : ""}`, spacing: { before: 180 } }),
+      new Paragraph({ children: [new TextRun({ text: model.notice, bold: true, color: "344054", font: bodyFont, size: 17 })], spacing: { before: 180 } }),
+    );
+  };
+
   models.forEach((model, modelIndex) => {
+    if (model.templateId === "forest-application") {
+      appendForestApplicationDocx(model, modelIndex);
+      return;
+    }
     children.push(
       new Paragraph({
         text: model.title,
