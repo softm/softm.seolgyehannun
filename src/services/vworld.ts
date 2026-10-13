@@ -16,7 +16,7 @@ export interface VWorldSearchResult {
 
 const apiBase = import.meta.env.VITE_API_BASE || "/api";
 
-async function authorizedHeaders(): Promise<HeadersInit> {
+export async function vworldAuthorizedHeaders(): Promise<HeadersInit> {
   const services = getFirebaseServices();
   if (!services) return {};
   const headers: Record<string, string> = {};
@@ -28,10 +28,14 @@ async function authorizedHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
+export function vworldApiUrl(path: string): string {
+  return new URL(`${apiBase}${path}`, window.location.origin).toString();
+}
+
 async function getJson(path: string, params: Record<string, string | number | boolean>): Promise<unknown> {
-  const url = new URL(`${apiBase}${path}`, window.location.origin);
+  const url = new URL(vworldApiUrl(path));
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-  const response = await fetch(url, { headers: await authorizedHeaders() });
+  const response = await fetch(url, { headers: await vworldAuthorizedHeaders() });
   if (!response.ok) throw new Error(`VWorld 연결 오류 (${response.status})`);
   return response.json();
 }
