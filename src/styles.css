@@ -442,7 +442,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .map-layer-switch button.active { background: var(--teal-900); color: white; box-shadow: 0 3px 9px rgba(0,69,65,0.18); }
 .map-layer-notice { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); width: min(420px, calc(100% - 24px)); min-height: 44px; padding: 9px 12px; border: 1px solid #efd8a8; border-radius: 10px; background: rgba(255,248,231,0.96); color: #8b5b08; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; line-height: 1.5; box-shadow: var(--shadow-sm); z-index: 5; }
 .map-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); min-height: 40px; padding: 0 14px; border-radius: 9px; background: rgba(0,58,55,0.88); color: white; display: flex; align-items: center; font-size: 13px; font-weight: 700; z-index: 4; }
-.case-detail-card { width: min(420px, calc(100% - 38px)); max-height: 62%; border: 1px solid #dce3e1; border-radius: 16px; position: absolute; right: 18px; bottom: 18px; background: white; box-shadow: 0 20px 50px rgba(24,58,52,0.18); overflow: hidden; z-index: 5; display: flex; flex-direction: column; }
+.case-detail-card { width: calc(100% - 36px); max-width: 720px; max-height: 62%; margin-inline: auto; border: 1px solid #dce3e1; border-radius: 16px; position: absolute; left: 0; right: 0; bottom: 18px; background: white; box-shadow: 0 20px 50px rgba(24,58,52,0.18); overflow: hidden; z-index: 5; display: flex; flex-direction: column; }
 .detail-drag-handle { display: none; }
 .case-detail-card > header { min-height: 49px; padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; }
 .case-detail-card > header > div { display: flex; align-items: center; gap: 7px; }
@@ -454,7 +454,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .detail-tabs { min-height: 40px; padding: 0 10px; border-top: 1px solid #eef1f3; border-bottom: 1px solid #e5eaed; display: flex; }
 .detail-tabs button { min-width: 58px; padding: 0 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #78848e; font-size: 9px; font-weight: 700; cursor: pointer; }
 .detail-tabs button[aria-selected="true"] { border-bottom-color: var(--teal-700); color: var(--teal-700); }
-.detail-body { padding: 12px 15px 15px; overflow: auto; }
+.detail-body { min-height: 0; padding: 12px 18px 15px; overflow: auto; }
 .next-action-box { min-height: 61px; padding: 12px; border: 1px solid #cfe4e0; border-radius: 11px; background: #f1f9f7; display: flex; align-items: center; gap: 10px; }
 .next-action-box.late { border-color: #efc5bd; background: #fff4f1; }
 .next-action-box > div { display: grid; gap: 4px; }
@@ -495,9 +495,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .history-list article > div { display: grid; gap: 3px; }
 .history-list strong { font-size: 9px; }
 .history-list small { color: #8c97a0; font-size: 7px; }
-.detail-actions { min-height: 61px; padding: 8px 12px; border-top: 1px solid #e5eaed; background: #fbfcfc; display: flex; align-items: center; gap: 7px; }
-.detail-actions .button { min-height: 39px; padding: 0 11px; font-size: 10px; }
-.status-change { min-width: 99px; margin-right: auto; position: relative; }
+.detail-actions { min-height: 61px; padding: 8px 12px; border-top: 1px solid #e5eaed; background: #fbfcfc; display: grid; grid-template-columns: minmax(112px, 1fr) repeat(4, max-content); align-items: center; gap: 7px; }
+.detail-actions .button { min-height: 39px; padding: 0 11px; justify-content: center; white-space: nowrap; font-size: 10px; }
+.status-change { min-width: 112px; position: relative; }
 .status-change select { width: 100%; height: 39px; padding: 0 28px 0 10px; border: 1px solid #d7dfe3; border-radius: 9px; background: white; appearance: none; font-size: 9px; font-weight: 700; }
 .status-change svg { position: absolute; right: 8px; top: 12px; pointer-events: none; }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: min(520px, calc(100vw - 30px)); min-height: 48px; padding: 8px 8px 8px 15px; border-radius: 13px; background: var(--teal-950); color: white; display: flex; align-items: center; gap: 9px; box-shadow: var(--shadow-lg); z-index: 120; font-size: 11px; }
@@ -1118,7 +1118,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .login-brand-panel { padding-left: 40px; padding-right: 40px; }
   .app-frame { grid-template-columns: 190px minmax(0, 1fr); }
   .case-workspace { grid-template-columns: 310px minmax(0, 1fr); }
-  .case-detail-card { width: min(370px, calc(100% - 28px)); right: 14px; bottom: 14px; }
+  .case-detail-card { width: calc(100% - 28px); max-width: 640px; bottom: 14px; }
   .wizard-footer { left: 190px; }
   .wizard-progress { justify-content: flex-start; overflow-x: auto; }
   .wizard-progress button { min-width: 96px; }
@@ -1217,12 +1217,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .case-workspace.mobile-map .case-list-panel { display: none; }
   .case-workspace.mobile-list .case-map-panel { display: none; }
   .case-map-panel, .parcel-map-shell, .parcel-map { min-height: 560px; }
-  .case-detail-card { width: 100%; max-height: 76%; border-radius: 18px 18px 0 0; right: 0; bottom: -100%; transition: bottom 220ms ease; }
+  .case-detail-card { width: 100%; max-width: none; max-height: 76%; border-radius: 18px 18px 0 0; left: 0; right: 0; bottom: -100%; transition: bottom 220ms ease; }
   .case-detail-card.open { bottom: 0; }
   .case-list-detail-host { place-items: end center; padding: 0; }
   .case-list-detail-host .case-detail-card { width: 100%; max-height: 82vh; border-radius: 18px 18px 0 0; position: relative; right: auto; bottom: auto; }
   .detail-drag-handle { width: 42px; height: 4px; margin: 7px auto 0; border-radius: 3px; background: #d0d7dc; display: block; }
   .detail-close { display: grid; }
+  .detail-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-actions .status-change { grid-column: 1 / -1; width: 100%; }
   .case-workspace.list-only .case-list { display: block; max-height: none; }
   .document-row { grid-template-columns: minmax(170px, 1fr) auto; gap: 10px; }
   .document-row.header { display: none; }
