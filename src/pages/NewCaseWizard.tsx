@@ -46,7 +46,7 @@ import { validateAttachment } from "../domain/files";
 import { sampleParcels } from "../data/demo";
 import { regionProfileFor } from "../data/regionProfiles";
 import { searchVWorld, lookupParcel, type VWorldSearchResult } from "../services/vworld";
-import { SampleReceiptLookupProvider, manualReceipt, type ReceiptLookupResult } from "../services/receipt";
+import { createReceiptLookupProvider, manualReceipt, type ReceiptLookupResult } from "../services/receipt";
 import { uploadCaseAttachment } from "../services/storage";
 import { exportCaseDocx, exportCasePdf } from "../services/documentExport";
 import {
@@ -464,7 +464,7 @@ function BasicStep({ caseRecord, patchCase }: StepProps) {
   const [receiptAgency, setReceiptAgency] = useState(caseRecord.parcels[0]?.jurisdictionName ?? "");
   const [lookupResult, setLookupResult] = useState<ReceiptLookupResult | null>(null);
   const [lookupPending, setLookupPending] = useState(false);
-  const provider = useMemo(() => new SampleReceiptLookupProvider(), []);
+  const provider = useMemo(() => createReceiptLookupProvider(), []);
 
   function toggleBusinessField(field: string) {
     patchCase({ businessFields: caseRecord.businessFields.includes(field)
