@@ -616,8 +616,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .invite-account { min-height: 64px; margin: 0 0 14px; padding: 10px 13px; border: 1px solid #e0e6e9; border-radius: 12px; display: flex; align-items: center; gap: 10px; text-align: left; }
 .invite-account > span { width: 40px; height: 40px; border-radius: 50%; background: var(--mint-100); color: var(--teal-700); display: grid; place-items: center; font-weight: 800; }
 .invite-account > div { min-width: 0; display: grid; gap: 3px; }
-.invite-account strong { font-size: 11px; }
-.invite-account small { color: #7b8791; font-size: 9px; }
+.invite-account strong { font-size: 14px; }
+.invite-account small { color: #667680; font-size: 13px; }
+.invite-actions { display: grid; gap: 10px; }
 
 /* New case wizard */
 .wizard-page { min-height: calc(100vh - 65px); padding-bottom: 82px; background: #f6f8fb; }
