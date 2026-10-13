@@ -413,7 +413,7 @@ export async function exportCasePdf(caseRecord: CaseRecord, templateId?: string)
       for (const referencePage of referencePages) {
         try {
           await waitForPdfAssets(referencePage.element);
-          const canvas = await html2canvas(referencePage.element, { scale: 2, backgroundColor: "#ffffff", logging: false });
+          const canvas = await html2canvas(referencePage.element, { scale: 3, backgroundColor: "#ffffff", logging: false });
           const output = addPage(referencePage.orientation);
           output.addImage(
             canvas.toDataURL("image/png"),
