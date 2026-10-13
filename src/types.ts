@@ -48,6 +48,7 @@ export interface ParcelSnapshot {
   zoning: string[];
   longitude: number;
   latitude: number;
+  boundary?: ParcelBoundary;
   jurisdictionCode: string;
   jurisdictionName: string;
   source: string;
@@ -55,6 +56,10 @@ export interface ParcelSnapshot {
   fetchedAt: string;
   verifiedByUser: boolean;
 }
+
+export type ParcelBoundary =
+  | { type: "Polygon"; coordinates: [number, number][][] }
+  | { type: "MultiPolygon"; coordinates: [number, number][][][] };
 
 export interface RegionProfile {
   id: string;
