@@ -40,6 +40,51 @@ describe("인허가 문서 자동작성", () => {
     expect(documentFieldValue(changed, template.id, field)).toBe("문서 전용 신청인");
   });
 
+  it("사업계획서와 피해방지계획서의 빈 계획 항목에 수정 가능한 기본 내용을 채운다", () => {
+    const original = demoCase();
+    const caseRecord = {
+      ...original,
+      constructionSummary: "",
+      safetyPlan: "",
+      environmentPlan: "",
+      planBody: { ...original.planBody, siteCondition: "", managementPlan: "" },
+      projectPlanDetails: {
+        ...original.projectPlanDetails,
+        roadPlan: "",
+        earthworkPlan: "",
+      },
+      documentDrafts: [],
+    };
+    const businessPlan = documentTemplates.find((template) => template.id === "business-plan")!;
+    const damagePlan = documentTemplates.find((template) => template.id === "damage-prevention-plan")!;
+    const overview = businessPlan.fields.find((field) => field.id === "overview")!;
+    const roadPlan = businessPlan.fields.find((field) => field.id === "roadPlan")!;
+    const siteSafety = damagePlan.fields.find((field) => field.id === "siteSafety")!;
+    const soilRunoff = damagePlan.fields.find((field) => field.id === "soilRunoff")!;
+
+    expect(documentFieldValue(caseRecord, businessPlan.id, overview)).toContain(caseRecord.parcels[0].address);
+    expect(documentFieldValue(caseRecord, businessPlan.id, roadPlan)).toContain("진입");
+    expect(documentFieldValue(caseRecord, damagePlan.id, siteSafety)).toContain("안전표지");
+    expect(documentFieldValue(caseRecord, damagePlan.id, soilRunoff)).toContain("침사지");
+
+    const models = buildCaseDocumentModels(caseRecord, [businessPlan.id, damagePlan.id]);
+    const generatedRoadPlan = models
+      .find((model) => model.templateId === businessPlan.id)!
+      .sections.flatMap((section) => section.fields)
+      .find((field) => field.id === roadPlan.id);
+    expect(generatedRoadPlan?.value).toContain("진입");
+
+    const editedDrafts = updateDocumentDraft(caseRecord, businessPlan.id, {
+      fieldId: roadPlan.id,
+      value: "현장 여건을 반영한 도로 계획",
+    });
+    const edited = { ...caseRecord, documentDrafts: editedDrafts };
+    expect(documentFieldValue(edited, businessPlan.id, roadPlan)).toBe("현장 여건을 반영한 도로 계획");
+
+    const clearedDrafts = updateDocumentDraft(edited, businessPlan.id, { fieldId: roadPlan.id, value: "" });
+    expect(documentFieldValue({ ...edited, documentDrafts: clearedDrafts }, businessPlan.id, roadPlan)).toBe("");
+  });
+
   it("대장·실측·계획·도로점용·제외 면적을 분리 합산한다", () => {
     const totals = parcelAreaTotals(demoCase());
     expect(totals).toEqual({ ledger: 4069, surveyed: 4064.2, planned: 3100, road: 48, excluded: 921 });
