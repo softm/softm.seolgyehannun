@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getAuth } from "firebase-admin/auth";
@@ -331,7 +332,7 @@ interface DocumentSnapshot {
   statusLabel: string;
   templateVersion: string;
   author: string;
-  sections: Array<{ title: string; fields: Array<{ label: string; value: string; required: boolean }> }>;
+  sections: Array<{ title: string; fields: Array<{ id: string; label: string; value: string; required: boolean }> }>;
   parcels: Array<{ address: string; role: string; ledgerArea: string; surveyedArea: string; plannedArea: string; roadArea: string; excludedArea: string; owner: string }>;
   permits: Array<{ name: string; relation: string; application: string; existingPermit: string; review: string }>;
   attachments: Array<{ name: string; role: string; version: string }>;
@@ -352,7 +353,7 @@ function sanitizeDocumentSnapshots(value: unknown): DocumentSnapshot[] {
       const sectionItem = section && typeof section === "object" ? section as Record<string, unknown> : {};
       const fields = Array.isArray(sectionItem.fields) ? sectionItem.fields.slice(0, 100).map((field) => {
         const fieldItem = field && typeof field === "object" ? field as Record<string, unknown> : {};
-        return { label: safeText(fieldItem.label, 200), value: safeText(fieldItem.value), required: Boolean(fieldItem.required) };
+        return { id: safeText(fieldItem.id, 120), label: safeText(fieldItem.label, 200), value: safeText(fieldItem.value), required: Boolean(fieldItem.required) };
       }) : [];
       return { title: safeText(sectionItem.title, 200), fields };
     }) : [];
@@ -396,9 +397,9 @@ function fallbackDocument(caseData: CaseDocumentData, parcels: FirebaseFirestore
     templateVersion: "기존 기본서식 1.0",
     author: caseData.assigneeName ?? "-",
     sections: [
-      { title: "사업 개요", fields: [{ label: "사업 목적", value: caseData.projectPurpose ?? "작성 필요", required: true }, { label: "개요", value: caseData.planBody?.overview ?? "작성 필요", required: true }] },
-      { title: "공사 계획", fields: [{ label: "공사 개요", value: caseData.constructionSummary ?? "작성 필요", required: false }, { label: "일정", value: caseData.scheduleSummary ?? "작성 필요", required: false }] },
-      { title: "안전 및 환경", fields: [{ label: "안전", value: caseData.safetyPlan ?? "작성 필요", required: false }, { label: "환경", value: caseData.environmentPlan ?? "작성 필요", required: false }] },
+      { title: "사업 개요", fields: [{ id: "purpose", label: "사업 목적", value: caseData.projectPurpose ?? "작성 필요", required: true }, { id: "overview", label: "개요", value: caseData.planBody?.overview ?? "작성 필요", required: true }] },
+      { title: "공사 계획", fields: [{ id: "constructionSummary", label: "공사 개요", value: caseData.constructionSummary ?? "작성 필요", required: false }, { id: "scheduleSummary", label: "일정", value: caseData.scheduleSummary ?? "작성 필요", required: false }] },
+      { title: "안전 및 환경", fields: [{ id: "safetyPlan", label: "안전", value: caseData.safetyPlan ?? "작성 필요", required: false }, { id: "environmentPlan", label: "환경", value: caseData.environmentPlan ?? "작성 필요", required: false }] },
     ],
     parcels: parcels.map((parcel) => ({ address: safeText(parcel.address), role: safeText(parcel.role), ledgerArea: `${parcel.ledgerAreaM2 ?? "-"}㎡`, surveyedArea: `${parcel.surveyedAreaM2 ?? "-"}㎡`, plannedArea: `${parcel.plannedAreaM2 ?? "-"}㎡`, roadArea: `${parcel.roadOccupancyAreaM2 ?? "-"}㎡`, excludedArea: `${parcel.excludedAreaM2 ?? "-"}㎡`, owner: Array.isArray(parcel.ownerNames) ? parcel.ownerNames.join(", ") : "-" })),
     permits: (caseData.permits ?? []).map((permit) => ({ name: permit.name ?? "-", relation: permit.relation ?? "-", application: permit.applicationKind === "change" ? "변경" : "신규", existingPermit: "-", review: "확인 필요" })),
@@ -417,33 +418,203 @@ function findKoreanFont(): string {
   return join(filesDirectory, font);
 }
 
+function documentField(document: DocumentSnapshot, id: string): string {
+  const result = document.sections.flatMap((section) => section.fields).find((field) => field.id === id)?.value ?? "";
+  return result === "작성 필요" ? "" : result;
+}
+
+function pdfTemplatePath(fileName: string): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "document-templates", fileName);
+}
+
+function addPdfPage(pdf: PDFKit.PDFDocument, layout: "portrait" | "landscape" = "portrait"): void {
+  pdf.addPage({ size: "A4", layout, margin: 42 });
+  pdf.font("NotoKR").fillColor("#111111");
+}
+
+function drawReferenceTitle(pdf: PDFKit.PDFDocument, title: string, top = 42): void {
+  pdf.fontSize(23).fillColor("#111111").text(title.split("").join(" "), 42, top, { width: pdf.page.width - 84, align: "center" });
+}
+
+function drawFieldAt(
+  pdf: PDFKit.PDFDocument,
+  text: string,
+  leftPercent: number,
+  topPercent: number,
+  widthPercent: number,
+  options: { fontSize?: number; align?: "left" | "center" | "right"; heightPercent?: number } = {},
+): void {
+  if (!text) return;
+  pdf.fontSize(options.fontSize ?? 8.5).fillColor("#111111").text(
+    text,
+    pdf.page.width * leftPercent / 100,
+    pdf.page.height * topPercent / 100,
+    {
+      width: pdf.page.width * widthPercent / 100,
+      height: options.heightPercent ? pdf.page.height * options.heightPercent / 100 : undefined,
+      align: options.align ?? "left",
+      lineBreak: Boolean(options.heightPercent),
+      ellipsis: true,
+    },
+  );
+}
+
+function drawOfficialDate(
+  pdf: PDFKit.PDFDocument,
+  source: string,
+  positions: Array<{ left: number; width: number }>,
+  top: number,
+): void {
+  const [year = "", month = "", day = ""] = source.slice(0, 10).split("-");
+  [year, month ? String(Number(month)) : "", day ? String(Number(day)) : ""].forEach((part, index) => {
+    drawFieldAt(pdf, part, positions[index].left, top, positions[index].width, { fontSize: 7.2, align: "right" });
+  });
+}
+
+function renderDevelopmentApplicationPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot): void {
+  addPdfPage(pdf);
+  pdf.image(pdfTemplatePath("development-application-page-1.png"), 0, 0, { width: pdf.page.width, height: pdf.page.height });
+  const actionTypes = documentField(document, "actionTypes").replaceAll(" ", "");
+  [
+    ["공작물설치", 10.7], ["토지형질변경", 29.1], ["토석채취", 48], ["토지분할", 67.2], ["물건적치", 85.6],
+  ].forEach(([label, left]) => {
+    if (actionTypes.includes(String(label))) drawFieldAt(pdf, "✓", Number(left), 16.75, 2.8, { fontSize: 10, align: "center" });
+  });
+  const applicantName = [documentField(document, "applicantName"), documentField(document, "representativeName")].filter(Boolean).join(" / ");
+  drawFieldAt(pdf, applicantName, 20.3, 21.2, 38.2, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "registrationNumber"), 64.2, 21.2, 24, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "applicantAddress"), 16.1, 23.8, 73, { fontSize: 7.5 });
+  drawFieldAt(pdf, documentField(document, "applicantPhone"), 61.2, 25.9, 24, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "siteAddress"), 17, 30.9, 45, { fontSize: 7.2 });
+  drawFieldAt(pdf, documentField(document, "landCategory"), 69, 30.9, 18, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "zoning"), 17, 33.5, 45, { fontSize: 7.2 });
+  drawFieldAt(pdf, documentField(document, "district"), 69, 33.5, 18, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "slopeDegree"), 34, 41.15, 19, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "soilType"), 70, 41.15, 17, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "buriedRockVolumeM3"), 34, 43.65, 19, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "mainTreeSpecies"), 34, 46.2, 19, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "standingForestAreaM2"), 34, 48.7, 19, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "unforestedAreaM2"), 70, 48.7, 17, { fontSize: 7.5, align: "center" });
+  drawFieldAt(pdf, documentField(document, "applicationAreaM2"), 34, 51.2, 45, { fontSize: 7.5 });
+  drawFieldAt(pdf, documentField(document, "purpose"), 17, 68.75, 72, { fontSize: 7.5, heightPercent: 2.2 });
+  drawOfficialDate(pdf, documentField(document, "startDate"), [{ left: 28.9, width: 6.6 }, { left: 37.5, width: 3.7 }, { left: 43.2, width: 4.5 }], 71);
+  drawOfficialDate(pdf, documentField(document, "endDate"), [{ left: 55, width: 7.1 }, { left: 64, width: 4.2 }, { left: 70, width: 4.2 }], 71);
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+  drawOfficialDate(pdf, today, [{ left: 67.4, width: 5 }, { left: 74.2, width: 5.7 }, { left: 81.8, width: 5.8 }], 76.15);
+  drawFieldAt(pdf, applicantName, 53.5, 78.05, 25.5, { fontSize: 7.5, align: "center" });
+  addPdfPage(pdf);
+  pdf.image(pdfTemplatePath("development-application-page-2.png"), 0, 0, { width: pdf.page.width, height: pdf.page.height });
+}
+
+function drawPdfTable(
+  pdf: PDFKit.PDFDocument,
+  headers: string[],
+  rows: string[][],
+  options: { x?: number; y?: number; width?: number; rowHeight?: number; columnRatios?: number[] } = {},
+): number {
+  const x = options.x ?? 42;
+  const y = options.y ?? pdf.y;
+  const width = options.width ?? pdf.page.width - x * 2;
+  const rowHeight = options.rowHeight ?? 32;
+  const ratios = options.columnRatios ?? headers.map(() => 1);
+  const ratioTotal = ratios.reduce((sum, value) => sum + value, 0);
+  const widths = ratios.map((ratio) => width * ratio / ratioTotal);
+  const drawRow = (values: string[], top: number, bold = false) => {
+    let left = x;
+    values.forEach((value, index) => {
+      const cellWidth = widths[index];
+      pdf.rect(left, top, cellWidth, rowHeight).stroke("#111111");
+      pdf.fontSize(7.5).fillColor("#111111").text(value, left + 3, top + 6, { width: cellWidth - 6, height: rowHeight - 10, align: "center", ellipsis: true });
+      left += cellWidth;
+    });
+    if (bold) pdf.font("NotoKR");
+  };
+  drawRow(headers, y, true);
+  rows.forEach((row, index) => drawRow(row, y + rowHeight * (index + 1)));
+  return y + rowHeight * (rows.length + 1);
+}
+
+function renderAreaStatementPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot): void {
+  addPdfPage(pdf, "landscape");
+  drawReferenceTitle(pdf, "개발행위허가면적조서", 30);
+  pdf.fontSize(8).text("단위: ㎡", 42, 74, { width: pdf.page.width - 84, align: "right" });
+  const rows = document.parcels.map((parcel) => [parcel.address, parcel.ledgerArea, parcel.plannedArea, parcel.roadArea, parcel.excludedArea, parcel.owner, parcel.role]);
+  const numericTotal = (key: "ledgerArea" | "plannedArea" | "roadArea" | "excludedArea") => document.parcels.reduce((sum, parcel) => sum + Number.parseFloat(parcel[key].replace(/[^0-9.-]/g, "") || "0"), 0).toLocaleString("ko-KR");
+  rows.push(["합계", numericTotal("ledgerArea"), numericTotal("plannedArea"), numericTotal("roadArea"), numericTotal("excludedArea"), "", `${document.parcels.length}필지`]);
+  drawPdfTable(pdf, ["토지 소재지·지번", "지적", "사업부지", "도로점용", "제외면적", "소유자", "비고"], rows, { y: 90, rowHeight: 43, columnRatios: [2.4, 1, 1, 1, 1, 1.35, 1.2] });
+}
+
+function renderReferenceSectionsPage(pdf: PDFKit.PDFDocument, title: string, fields: Array<{ label: string; value: string }>, firstPage = false): void {
+  addPdfPage(pdf);
+  if (firstPage) drawReferenceTitle(pdf, title, 38);
+  let y = firstPage ? 104 : 56;
+  fields.forEach((field, index) => {
+    const heading = `${index + 1}. ${field.label}`;
+    pdf.fontSize(11).fillColor("#111111").text(heading, 54, y, { width: pdf.page.width - 108 });
+    y = pdf.y + 5;
+    pdf.fontSize(8.8).fillColor("#222222").text(field.value || "해당사항 없음.", 70, y, { width: pdf.page.width - 140, lineGap: 3 });
+    y = pdf.y + 12;
+  });
+}
+
+function renderBusinessPlanPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot): void {
+  const fields = document.sections.flatMap((section) => section.fields);
+  const groups = [fields.slice(0, 5), fields.slice(5, 13), fields.slice(13, 22), fields.slice(22)];
+  groups.forEach((group, index) => renderReferenceSectionsPage(pdf, "사업계획서", group, index === 0));
+}
+
+function renderDamagePreventionPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot): void {
+  addPdfPage(pdf);
+  drawReferenceTitle(pdf, "피해방지계획서", 38);
+  const site = documentField(document, "siteAddress");
+  const purpose = documentField(document, "purpose");
+  const area = documentField(document, "area");
+  pdf.fontSize(9.5).text(`◆ 사업장의 위치: ${site}\n◆ 전용 목적: ${purpose}\n◆ 사업장의 면적: ${area}㎡`, 58, 100, { width: pdf.page.width - 116, lineGap: 7 });
+  pdf.fontSize(16).text("■ 피 해 방 지 계 획 ■", 58, 178, { width: pdf.page.width - 116, align: "center" });
+  const items = ["siteSafety", "soilRunoff", "dust", "traffic", "drainage", "additional"].map((id) => documentField(document, id));
+  let y = 226;
+  items.forEach((item, index) => {
+    pdf.fontSize(9).text(`${index + 1}. ${item || "해당사항 없음."}`, 64, y, { width: pdf.page.width - 128, lineGap: 3 });
+    y = pdf.y + 13;
+  });
+  pdf.fontSize(9).text("7. 상기 사항 외에도 피해방지 등이 필요하다고 인정될 경우 적절한 조치를 취하겠습니다.", 64, y, { width: pdf.page.width - 128, lineGap: 3 });
+  pdf.fontSize(9).text(documentField(document, "applicantName"), 64, pdf.page.height - 110, { width: pdf.page.width - 128, align: "right" });
+}
+
+function renderGenericPdf(pdf: PDFKit.PDFDocument, document: DocumentSnapshot, version: number, caseData: CaseDocumentData): void {
+  addPdfPage(pdf);
+  pdf.fontSize(22).fillColor("#0c1c2e").text(document.title, { align: "center" });
+  pdf.moveDown(0.3).fontSize(9).fillColor("#08766d").text(document.statusLabel, { align: "center" });
+  pdf.moveDown(0.3).fontSize(8).fillColor("#667085").text(`${document.templateVersion} · 제출본 v${version} · 작성자 ${document.author || caseData.assigneeName || "-"} · 생성 ${formatKstDate(new Date())}`, { align: "center" });
+  const section = (title: string, lines: string[]) => {
+    pdf.moveDown(1.5).fontSize(14).fillColor("#000000").text(title);
+    pdf.moveDown(0.45).fontSize(10).fillColor("#344054");
+    lines.forEach((line) => pdf.text(line || "작성 필요", { lineGap: 4 }));
+  };
+  document.sections.forEach((item) => section(item.title, item.fields.map((field) => `${field.label}${field.required ? " *" : ""}: ${field.value || "작성 필요"}`)));
+  section("대상 필지 및 면적", document.parcels.map((parcel) => `${parcel.address} · ${parcel.role} · 대장 ${parcel.ledgerArea} · 실측 ${parcel.surveyedArea} · 계획 ${parcel.plannedArea} · 도로 ${parcel.roadArea} · 제외 ${parcel.excludedArea} · 소유자 ${parcel.owner}`));
+  section("허가 및 관련 절차", document.permits.map((permit) => `${permit.name} · ${permit.relation} · ${permit.application} · 기존 허가 ${permit.existingPermit} · ${permit.review}`));
+  section("첨부 목록", document.attachments.length ? document.attachments.map((attachment) => `${attachment.name} · ${attachment.role} · ${attachment.version}`) : ["등록된 첨부가 없습니다."]);
+  section("서식·데이터 출처", document.sources.length ? document.sources : ["출처 정보 없음"]);
+  pdf.moveDown(1.2).fontSize(8).fillColor("#475467").text(document.notice);
+}
+
 async function createPdfBuffer(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[], version: number, requestedDocuments: DocumentSnapshot[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const pdf = new PDFDocument({ size: "A4", margin: 52, info: { Title: `${caseData.title ?? "업무"} 제출서류 묶음`, Author: caseData.assigneeName ?? "설계한눈" } });
+    const pdf = new PDFDocument({ autoFirstPage: false, info: { Title: `${caseData.title ?? "업무"} 제출서류 묶음`, Author: caseData.assigneeName ?? "설계한눈" } });
     pdf.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     pdf.on("end", () => resolve(Buffer.concat(chunks)));
     pdf.on("error", reject);
     try {
       pdf.registerFont("NotoKR", findKoreanFont());
-      pdf.font("NotoKR");
       const documents = requestedDocuments.length ? requestedDocuments : [fallbackDocument(caseData, parcels, attachments)];
-      const section = (title: string, lines: string[]) => {
-        pdf.moveDown(1.5).fontSize(14).fillColor("#000000").text(title);
-        pdf.moveDown(0.45).fontSize(10).fillColor("#344054");
-        lines.forEach((line) => pdf.text(line || "작성 필요", { lineGap: 4 }));
-      };
-      documents.forEach((document, index) => {
-        if (index > 0) pdf.addPage();
-        pdf.fontSize(22).fillColor("#0c1c2e").text(document.title, { align: "center" });
-        pdf.moveDown(0.3).fontSize(9).fillColor("#08766d").text(document.statusLabel, { align: "center" });
-        pdf.moveDown(0.3).fontSize(8).fillColor("#667085").text(`${document.templateVersion} · 제출본 v${version} · 작성자 ${document.author || caseData.assigneeName || "-"} · 생성 ${formatKstDate(new Date())}`, { align: "center" });
-        document.sections.forEach((item) => section(item.title, item.fields.map((field) => `${field.label}${field.required ? " *" : ""}: ${field.value || "작성 필요"}`)));
-        section("대상 필지 및 면적", document.parcels.map((parcel) => `${parcel.address} · ${parcel.role} · 대장 ${parcel.ledgerArea} · 실측 ${parcel.surveyedArea} · 계획 ${parcel.plannedArea} · 도로 ${parcel.roadArea} · 제외 ${parcel.excludedArea} · 소유자 ${parcel.owner}`));
-        section("허가 및 관련 절차", document.permits.map((permit) => `${permit.name} · ${permit.relation} · ${permit.application} · 기존 허가 ${permit.existingPermit} · ${permit.review}`));
-        section("첨부 목록", document.attachments.length ? document.attachments.map((attachment) => `${attachment.name} · ${attachment.role} · ${attachment.version}`) : ["등록된 첨부가 없습니다."]);
-        section("서식·데이터 출처", document.sources.length ? document.sources : ["출처 정보 없음"]);
-        pdf.moveDown(1.2).fontSize(8).fillColor("#475467").text(document.notice);
+      documents.forEach((document) => {
+        if (document.templateId === "development-application") renderDevelopmentApplicationPdf(pdf, document);
+        else if (document.templateId === "area-statement") renderAreaStatementPdf(pdf, document);
+        else if (document.templateId === "business-plan") renderBusinessPlanPdf(pdf, document);
+        else if (document.templateId === "damage-prevention-plan") renderDamagePreventionPdf(pdf, document);
+        else renderGenericPdf(pdf, document, version, caseData);
       });
       pdf.end();
     } catch (error) {
