@@ -8,6 +8,7 @@ import {
   type InvitationResult,
   type OrganizationMemberRecord,
 } from "../services/organizationRepository";
+import { buildInvitationUrl } from "../domain/invitationUrl";
 import type { OrganizationRole } from "../types";
 
 const roleLabels: Record<OrganizationRole, string> = {
@@ -37,7 +38,12 @@ export function TeamPage() {
   }, [user]);
 
   const inviteUrl = useMemo(() => result && user
-    ? `${window.location.origin}/invite?organizationId=${encodeURIComponent(user.organizationId)}&token=${encodeURIComponent(result.token)}`
+    ? buildInvitationUrl(
+      window.location.origin,
+      user.organizationId,
+      result.token,
+      import.meta.env.VITE_DEPLOY_TARGET === "github-pages",
+    )
     : "", [result, user]);
 
   async function submitInvitation(event: FormEvent) {
