@@ -34,6 +34,7 @@ interface ParcelMapProps {
   focusLocation?: MapFocusLocation | null;
   onMapClick?: (longitude: number, latitude: number) => void;
   onCaseSelect?: (caseId: string) => void;
+  onBoundariesResolved?: (boundaries: Record<string, ParcelBoundary>) => void;
 }
 
 const EMPTY_CASES: CaseRecord[] = [];
@@ -72,6 +73,7 @@ export function ParcelMap({
   focusLocation = null,
   onMapClick,
   onCaseSelect,
+  onBoundariesResolved,
 }: ParcelMapProps) {
   const [mapMode, setMapMode] = useState<MapMode>(interactive ? "cadastral" : "normal");
   const [layerMessage, setLayerMessage] = useState("");
@@ -87,12 +89,14 @@ export function ParcelMap({
   const interactiveRef = useRef(interactive);
   const onMapClickRef = useRef(onMapClick);
   const onCaseSelectRef = useRef(onCaseSelect);
+  const onBoundariesResolvedRef = useRef(onBoundariesResolved);
   const mapModeRef = useRef(mapMode);
   const requestedBoundaryPnusRef = useRef(new Set<string>());
   selectedCaseIdRef.current = selectedCaseId;
   interactiveRef.current = interactive;
   onMapClickRef.current = onMapClick;
   onCaseSelectRef.current = onCaseSelect;
+  onBoundariesResolvedRef.current = onBoundariesResolved;
   mapModeRef.current = mapMode;
 
   useEffect(() => {
@@ -229,7 +233,8 @@ export function ParcelMap({
 
   useEffect(() => {
     const selectedCase = cases.find((item) => item.id === selectedCaseId);
-    const unresolvedParcels = selectedCase?.parcels.filter((parcel) => (
+    const visibleParcels = selectedCase?.parcels ?? parcels;
+    const unresolvedParcels = visibleParcels.filter((parcel) => (
       !parcel.boundary
       && /^\d{19}$/.test(parcel.pnu)
       && !resolvedBoundaries[parcel.pnu]
@@ -260,13 +265,15 @@ export function ParcelMap({
       if (cancelled) return;
       const boundaries = entries.filter((entry): entry is readonly [string, ParcelBoundary] => Boolean(entry));
       if (!boundaries.length) return;
-      setResolvedBoundaries((current) => ({ ...current, ...Object.fromEntries(boundaries) }));
+      const nextBoundaries = Object.fromEntries(boundaries);
+      setResolvedBoundaries((current) => ({ ...current, ...nextBoundaries }));
+      onBoundariesResolvedRef.current?.(nextBoundaries);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [cases, resolvedBoundaries, selectedCaseId]);
+  }, [cases, parcels, resolvedBoundaries, selectedCaseId]);
 
   useEffect(() => {
     const source = vectorSourceRef.current;
@@ -280,7 +287,10 @@ export function ParcelMap({
       });
       return feature;
     }));
-    const parcelFeatures = parcels.map(parcelFeature);
+    const parcelFeatures = parcels.map((parcel, index) => {
+      const boundary = parcel.boundary ?? resolvedBoundaries[parcel.pnu];
+      return parcelFeature(boundary ? { ...parcel, boundary } : parcel, index);
+    });
     const selectedParcelFeatures = selectedCase?.parcels.map((parcel, index) => {
       const boundary = parcel.boundary ?? resolvedBoundaries[parcel.pnu];
       const feature = parcelFeature(boundary ? { ...parcel, boundary } : parcel, index);
@@ -289,10 +299,11 @@ export function ParcelMap({
     }) ?? [];
     source.addFeatures([...caseFeatures, ...selectedParcelFeatures, ...parcelFeatures]);
 
-    if (selectedParcelFeatures.length) {
+    const focusedParcelFeatures = selectedParcelFeatures.length ? selectedParcelFeatures : parcelFeatures;
+    if (focusedParcelFeatures.length) {
       setMapMode("cadastral");
       const selectedExtent = createEmpty();
-      selectedParcelFeatures.forEach((feature) => {
+      focusedParcelFeatures.forEach((feature) => {
         const geometry = feature.getGeometry();
         if (geometry) extendExtent(selectedExtent, geometry.getExtent());
       });
@@ -302,16 +313,8 @@ export function ParcelMap({
         duration: 500,
       });
     } else {
-      const selected = parcels.at(-1);
-      if (!selected) {
-        mapRef.current?.getLayers().changed();
-        return;
-      }
-      mapRef.current?.getView().animate({
-        center: fromLonLat([selected.longitude, selected.latitude]),
-        zoom: interactiveRef.current ? 17 : 15,
-        duration: 420,
-      });
+      mapRef.current?.getLayers().changed();
+      return;
     }
     mapRef.current?.getLayers().changed();
   }, [cases, parcels, resolvedBoundaries, selectedCaseId, selectedCaseFitPadding]);
