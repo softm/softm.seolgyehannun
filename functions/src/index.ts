@@ -97,6 +97,7 @@ function applyCors(request: Request, response: Response): boolean {
   if (origin) response.set("Access-Control-Allow-Origin", origin);
   response.set("Vary", "Origin");
   response.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
+  response.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Type");
   response.set("Access-Control-Allow-Methods", "GET, OPTIONS");
   if (request.method === "OPTIONS") {
     response.status(204).send("");
@@ -136,7 +137,7 @@ export const api = onRequest(
   async (request, response) => {
     if (!applyCors(request, response)) return;
     try {
-      await authenticateHttpRequest(request);
+      const actor = await authenticateHttpRequest(request);
       if (request.method !== "GET") {
         response.status(405).json({ error: "GET 요청만 지원합니다." });
         return;
@@ -146,6 +147,43 @@ export const api = onRequest(
       const pathname = incomingUrl.pathname.replace(/^\/api/, "");
       const serviceMatch = pathname.match(/^\/vworld\/(search|address|data|wms)$/);
       const nedMatch = pathname.match(/^\/vworld\/ned\/([A-Za-z]+)$/);
+
+      if (pathname === "/documents/download") {
+        const organizationId = incomingUrl.searchParams.get("organizationId") ?? "";
+        const caseId = incomingUrl.searchParams.get("caseId") ?? "";
+        const documentId = incomingUrl.searchParams.get("documentId") ?? "";
+        const type = incomingUrl.searchParams.get("type") === "pdf" ? "pdf" : incomingUrl.searchParams.get("type") === "docx" ? "docx" : "";
+        if (!organizationId || !caseId || !documentId || !type) {
+          throw new HttpsError("invalid-argument", "문서 다운로드 요청을 확인해 주세요.");
+        }
+        const membership = await db.doc(`organizations/${organizationId}/members/${actor.uid}`).get();
+        if (!membership.exists || !["admin", "editor", "viewer"].includes(String(membership.data()?.role))) {
+          throw new HttpsError("permission-denied", "이 문서를 내려받을 권한이 없습니다.");
+        }
+        const documentSnapshot = await db.doc(`organizations/${organizationId}/cases/${caseId}/documents/${documentId}`).get();
+        const documentData = documentSnapshot.data();
+        if (!documentSnapshot.exists || documentData?.status !== "ready") {
+          throw new HttpsError("not-found", "완료된 문서를 찾지 못했습니다.");
+        }
+        const storagePath = String(type === "pdf" ? documentData.pdfPath ?? "" : documentData.docxPath ?? "");
+        const expectedPrefix = `organizations/${organizationId}/cases/${caseId}/documents/${documentId}/`;
+        if (!storagePath.startsWith(expectedPrefix) || storagePath.includes("..") || !storagePath.toLowerCase().endsWith(`.${type}`)) {
+          throw new HttpsError("permission-denied", "문서 저장 경로를 확인할 수 없습니다.");
+        }
+        const file = bucket.file(storagePath);
+        const [metadata] = await file.getMetadata();
+        if (Number(metadata.size ?? 0) > 50 * 1024 * 1024) {
+          throw new HttpsError("failed-precondition", "50MB를 초과한 문서는 내려받을 수 없습니다.");
+        }
+        const [contents] = await file.download();
+        const fileName = storagePath.slice(expectedPrefix.length);
+        response.set("Content-Type", metadata.contentType || (type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+        response.set("Content-Disposition", `attachment; filename="document-${documentId}.${type}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+        response.set("Content-Length", String(contents.byteLength));
+        response.set("Cache-Control", "private, no-store, max-age=0");
+        response.status(200).send(contents);
+        return;
+      }
 
       if (serviceMatch) {
         const service = serviceMatch[1];
@@ -200,7 +238,15 @@ export const api = onRequest(
       response.status(404).json({ error: "지원하지 않는 API 경로입니다." });
     } catch (error) {
       logger.error("API request failed", error);
-      const status = error instanceof HttpsError && error.code === "unauthenticated" ? 401 : error instanceof HttpsError ? 403 : 502;
+      const status = error instanceof HttpsError && error.code === "unauthenticated"
+        ? 401
+        : error instanceof HttpsError && error.code === "not-found"
+          ? 404
+          : error instanceof HttpsError && ["invalid-argument", "failed-precondition"].includes(error.code)
+            ? 400
+            : error instanceof HttpsError
+              ? 403
+              : 502;
       response.status(status).json({ error: error instanceof Error ? error.message : "외부 서비스 연결에 실패했습니다." });
     }
   },
