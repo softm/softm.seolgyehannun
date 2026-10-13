@@ -11,6 +11,7 @@ import GeoJSON from "ol/format/GeoJSON";
 import type ImageTile from "ol/ImageTile";
 import TileState from "ol/TileState";
 import Point from "ol/geom/Point";
+import { createEmpty, extend as extendExtent } from "ol/extent";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Circle as CircleStyle, Fill, Stroke, Style } from "ol/style";
 import type { CaseRecord, ParcelSnapshot } from "../types";
@@ -224,6 +225,7 @@ export function ParcelMap({
   useEffect(() => {
     const source = vectorSourceRef.current;
     source.clear();
+    const selectedCase = cases.find((item) => item.id === selectedCaseId);
     const caseFeatures = cases.flatMap((caseRecord) => caseRecord.parcels.slice(0, 1).map((parcel) => {
       const feature = new Feature({
         geometry: new Point(fromLonLat([parcel.longitude, parcel.latitude])),
@@ -233,9 +235,31 @@ export function ParcelMap({
       return feature;
     }));
     const parcelFeatures = parcels.map(parcelFeature);
-    source.addFeatures([...caseFeatures, ...parcelFeatures]);
-    const selected = cases.find((item) => item.id === selectedCaseId)?.parcels[0] ?? parcels.at(-1);
-    if (selected) {
+    const selectedParcelFeatures = selectedCase?.parcels.map((parcel, index) => {
+      const feature = parcelFeature(parcel, index);
+      feature.set("caseId", selectedCase.id);
+      return feature;
+    }) ?? [];
+    source.addFeatures([...caseFeatures, ...selectedParcelFeatures, ...parcelFeatures]);
+
+    if (selectedParcelFeatures.length) {
+      setMapMode("cadastral");
+      const selectedExtent = createEmpty();
+      selectedParcelFeatures.forEach((feature) => {
+        const geometry = feature.getGeometry();
+        if (geometry) extendExtent(selectedExtent, geometry.getExtent());
+      });
+      mapRef.current?.getView().fit(selectedExtent, {
+        padding: [72, 72, 72, 72],
+        maxZoom: 18,
+        duration: 500,
+      });
+    } else {
+      const selected = parcels.at(-1);
+      if (!selected) {
+        mapRef.current?.getLayers().changed();
+        return;
+      }
       mapRef.current?.getView().animate({
         center: fromLonLat([selected.longitude, selected.latitude]),
         zoom: interactiveRef.current ? 17 : 15,
