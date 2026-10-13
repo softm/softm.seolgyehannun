@@ -708,6 +708,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .expanded-map-selection-list strong, .expanded-map-selection-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .expanded-map-selection-list small { color: #7b8985; }
 .expanded-map-selection-list button { width: 34px; height: 34px; border: 0; border-radius: 8px; background: #f1f4f3; color: #7e8b87; display: grid; place-items: center; cursor: pointer; }
+.expanded-map-selection-list .expanded-map-focus { width: auto; height: auto; min-width: 0; padding: 0; border-radius: 0; background: transparent; color: inherit; place-items: initial; text-align: left; gap: 3px; }
+.expanded-map-focus em { margin-top: 2px; color: var(--teal-700); display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-style: normal; font-weight: 800; }
+.expanded-map-focus:hover strong, .expanded-map-focus:focus-visible strong { color: var(--teal-700); text-decoration: underline; }
 .expanded-map-empty { min-height: 210px; border: 1px dashed #becdca; border-radius: 12px; color: #73817d; display: grid; place-items: center; align-content: center; gap: 7px; text-align: center; }
 .expanded-map-empty strong { color: #314641; }
 .selected-parcel-list { max-height: min(58vh, 640px); padding-right: 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-color: var(--teal-600) #edf3f2; display: grid; gap: 8px; }
@@ -718,6 +721,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .parcel-role span { padding: 3px 5px; border-radius: 5px; background: #eaf7f3; display: inline-flex; align-items: center; gap: 3px; color: var(--success); font-size: 6px; }
 .selected-parcel-list strong { display: block; font-size: 10px; }
 .selected-parcel-list small { display: block; margin-top: 3px; color: #87939d; font-size: 7px; }
+.parcel-focus-button { width: 100%; min-height: 48px; padding: 5px 7px; border: 1px solid transparent; border-radius: 8px; background: transparent; display: flex; align-items: center; justify-content: space-between; gap: 9px; text-align: left; cursor: pointer; }
+.parcel-focus-button > span { min-width: 0; }
+.parcel-focus-button em { flex: 0 0 auto; color: var(--teal-700); display: inline-flex; align-items: center; gap: 4px; font-size: 8px; font-style: normal; font-weight: 800; }
+.parcel-focus-button:hover, .parcel-focus-button:focus-visible { border-color: #b8d5d0; background: #eff9f7; outline: 0; }
 .parcel-facts { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
 .parcel-facts span { padding: 3px 6px; border-radius: 5px; background: #f1f4f5; color: #66747f; font-size: 7px; }
 .selected-parcel-list p { margin: 8px 0 0; color: #9aa4ac; font-size: 6.5px; }
