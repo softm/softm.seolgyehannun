@@ -5,6 +5,7 @@ import { InvitationPage } from "../pages/InvitationPage";
 
 const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
+  refreshUser: vi.fn(),
   acceptInvitation: vi.fn(),
   user: {
     uid: "member-user",
@@ -18,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../context", () => ({
-  useAuth: () => ({ user: mocks.user, logout: mocks.logout }),
+  useAuth: () => ({ user: mocks.user, logout: mocks.logout, refreshUser: mocks.refreshUser }),
 }));
 
 vi.mock("../services/firebase", () => ({ firebaseConfigured: true }));
@@ -35,6 +36,7 @@ function LoginLocation() {
 describe("초대 계정 전환", () => {
   beforeEach(() => {
     mocks.logout.mockReset();
+    mocks.refreshUser.mockReset();
     mocks.acceptInvitation.mockReset();
   });
 
@@ -51,8 +53,24 @@ describe("초대 계정 전환", () => {
     fireEvent.click(screen.getByRole("button", { name: "다른 계정으로 로그인" }));
 
     await waitFor(() => expect(mocks.logout).toHaveBeenCalledOnce());
-    expect(screen.getByTestId("login-location")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("login-location")).toHaveTextContent(
       "/login?returnTo=%2Finvite%3ForganizationId%3Dorganization-1%26token%3Dinvite-token",
+    ));
+  });
+
+  it("초대를 수락하면 초대 조직 기준으로 현재 사용자 세션을 다시 불러온다", async () => {
+    render(
+      <MemoryRouter initialEntries={["/invite?organizationId=invited-organization&token=invite-token"]}>
+        <Routes>
+          <Route path="/invite" element={<InvitationPage />} />
+        </Routes>
+      </MemoryRouter>,
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "초대 수락" }));
+
+    await waitFor(() => expect(mocks.acceptInvitation).toHaveBeenCalledWith("invited-organization", "invite-token"));
+    expect(mocks.refreshUser).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("link", { name: /업무 공간으로 이동/ })).toBeInTheDocument();
   });
 });
