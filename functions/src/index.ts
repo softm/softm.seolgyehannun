@@ -249,6 +249,48 @@ async function requireRole(request: CallableRequest, organizationId: string, rol
   }
 }
 
+export const listUserOrganizations = onCall({ enforceAppCheck: false }, async (request) => {
+  requireCallableAppCheck(request);
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const memberships = await db.collectionGroup("members").where("uid", "==", request.auth.uid).get();
+  const activeMemberships = memberships.docs.filter((membership) => membership.data().status === "active");
+  const organizationRefs = activeMemberships.flatMap((membership) => {
+    const organization = membership.ref.parent.parent;
+    return organization ? [organization] : [];
+  });
+  const organizations = organizationRefs.length ? await db.getAll(...organizationRefs) : [];
+  const names = new Map(organizations.map((organization) => [organization.id, String(organization.data()?.name ?? "이름 없는 업무공간")]));
+  return {
+    organizations: activeMemberships.map((membership) => {
+      const organizationId = membership.ref.parent.parent!.id;
+      return {
+        id: organizationId,
+        name: names.get(organizationId) ?? "이름 없는 업무공간",
+        role: String(membership.data().role ?? "viewer"),
+      };
+    }).sort((left, right) => left.name.localeCompare(right.name, "ko")),
+  };
+});
+
+export const switchUserOrganization = onCall({ enforceAppCheck: false }, async (request) => {
+  requireCallableAppCheck(request);
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const organizationId = String(request.data?.organizationId ?? "").trim();
+  if (!organizationId) throw new HttpsError("invalid-argument", "업무공간을 선택해 주세요.");
+  const [membership, organization] = await Promise.all([
+    db.doc(`organizations/${organizationId}/members/${request.auth.uid}`).get(),
+    db.doc(`organizations/${organizationId}`).get(),
+  ]);
+  if (!membership.exists || membership.data()?.status !== "active" || !organization.exists) {
+    throw new HttpsError("permission-denied", "이 업무공간에 접근할 권한이 없습니다.");
+  }
+  await db.doc(`users/${request.auth.uid}`).set({
+    defaultOrganizationId: organizationId,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { organizationId };
+});
+
 export const bootstrapOrganization = onCall({ enforceAppCheck: false }, async (request) => {
   requireCallableAppCheck(request);
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
