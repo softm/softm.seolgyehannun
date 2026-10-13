@@ -37,6 +37,11 @@ interface ParcelMapProps {
   onParcelsResolved?: (parcels: ParcelSnapshot[]) => void;
 }
 
+interface MapLayerNotice {
+  mode: MapMode;
+  message: string;
+}
+
 const EMPTY_CASES: CaseRecord[] = [];
 const EMPTY_PARCELS: ParcelSnapshot[] = [];
 const DEFAULT_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [72, 72, 72, 72];
@@ -52,6 +57,15 @@ const imagerySelectionStyle = [
     stroke: new Stroke({ color: "#f51d76", width: 5 }),
   }),
 ];
+
+function hasValidParcelLocation(parcel: ParcelSnapshot): boolean {
+  return Number.isFinite(parcel.longitude)
+    && Number.isFinite(parcel.latitude)
+    && parcel.longitude >= -180
+    && parcel.longitude <= 180
+    && parcel.latitude >= -90
+    && parcel.latitude <= 90;
+}
 
 function parcelFeature(parcel: ParcelSnapshot, parcelIndex: number) {
   const boundaryGeometry = parcel.boundary
@@ -76,7 +90,7 @@ export function ParcelMap({
   onParcelsResolved,
 }: ParcelMapProps) {
   const [mapMode, setMapMode] = useState<MapMode>(interactive ? "cadastral" : "normal");
-  const [layerMessage, setLayerMessage] = useState("");
+  const [layerNotice, setLayerNotice] = useState<MapLayerNotice | null>(null);
   const [resolvedBoundaries, setResolvedBoundaries] = useState<Record<string, ParcelBoundary>>({});
   const targetRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -98,34 +112,41 @@ export function ParcelMap({
   onCaseSelectRef.current = onCaseSelect;
   onParcelsResolvedRef.current = onParcelsResolved;
   mapModeRef.current = mapMode;
+  const selectedMapCase = cases.find((item) => item.id === selectedCaseId);
+  const selectedMapParcel = selectedMapCase?.parcels.find(hasValidParcelLocation);
+  const mappableCaseCount = cases.filter((item) => item.parcels.some(hasValidParcelLocation)).length;
 
   useEffect(() => {
     if (!targetRef.current || mapRef.current) return;
+    const target = targetRef.current;
+    const baseSource = new XYZ({
+      url: "https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png",
+      maxZoom: 19,
+      crossOrigin: "anonymous",
+      attributions: "© VWorld",
+    });
     const baseLayer = new TileLayer({
-      source: new XYZ({
-        url: "https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png",
-        maxZoom: 19,
-        crossOrigin: "anonymous",
-        attributions: "© VWorld",
-      }),
+      source: baseSource,
       visible: mapMode === "normal",
     });
+    const satelliteSource = new XYZ({
+      url: "https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg",
+      maxZoom: 19,
+      crossOrigin: "anonymous",
+      attributions: "© VWorld",
+    });
     const satelliteLayer = new TileLayer({
-      source: new XYZ({
-        url: "https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg",
-        maxZoom: 19,
-        crossOrigin: "anonymous",
-        attributions: "© VWorld",
-      }),
+      source: satelliteSource,
       visible: mapMode !== "normal",
     });
+    const hybridSource = new XYZ({
+      url: "https://xdworld.vworld.kr/2d/Hybrid/service/{z}/{x}/{y}.png",
+      maxZoom: 19,
+      crossOrigin: "anonymous",
+      attributions: "© VWorld",
+    });
     const hybridLayer = new TileLayer({
-      source: new XYZ({
-        url: "https://xdworld.vworld.kr/2d/Hybrid/service/{z}/{x}/{y}.png",
-        maxZoom: 19,
-        crossOrigin: "anonymous",
-        attributions: "© VWorld",
-      }),
+      source: hybridSource,
       visible: mapMode === "satellite",
     });
     const cadastralSource = new TileWMS({
@@ -157,9 +178,22 @@ export function ParcelMap({
       transition: 0,
     });
     cadastralSource.on("tileloaderror", () => {
-      setLayerMessage("연속지적도를 불러오지 못했습니다. 로그인 상태와 VWorld 연결을 확인해 주세요.");
+      if (mapModeRef.current === "cadastral") {
+        setLayerNotice({ mode: "cadastral", message: "연속지적도를 불러오지 못했습니다. 다시 시도하거나 일반지도로 전환해 주세요." });
+      }
     });
-    cadastralSource.on("tileloadend", () => setLayerMessage(""));
+    cadastralSource.on("tileloadend", () => setLayerNotice((current) => current?.mode === "cadastral" ? null : current));
+    baseSource.on("tileloaderror", () => {
+      if (mapModeRef.current === "normal") setLayerNotice({ mode: "normal", message: "일반지도를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요." });
+    });
+    baseSource.on("tileloadend", () => setLayerNotice((current) => current?.mode === "normal" ? null : current));
+    satelliteSource.on("tileloaderror", () => {
+      const currentMode = mapModeRef.current;
+      if (currentMode !== "normal") setLayerNotice({ mode: currentMode, message: "위성 배경지도를 불러오지 못했습니다. 다시 시도하거나 일반지도로 전환해 주세요." });
+    });
+    hybridSource.on("tileloaderror", () => {
+      if (mapModeRef.current === "satellite") setLayerNotice({ mode: "satellite", message: "위성 지도 라벨을 불러오지 못했습니다. 다시 시도해 주세요." });
+    });
     const cadastralLayer = new TileLayer({
       source: cadastralSource,
       visible: mapMode === "cadastral",
@@ -183,7 +217,7 @@ export function ParcelMap({
       },
     });
     const map = new Map({
-      target: targetRef.current,
+      target,
       layers: [
         baseLayer,
         satelliteLayer,
@@ -213,7 +247,24 @@ export function ParcelMap({
       }
     });
     mapRef.current = map;
+    let resizeFrame = 0;
+    const updateMapSize = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(() => {
+        const bounds = target.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) return;
+        map.updateSize();
+        map.renderSync();
+      });
+    };
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateMapSize);
+    resizeObserver?.observe(target);
+    window.addEventListener("resize", updateMapSize);
+    updateMapSize();
     return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateMapSize);
+      window.cancelAnimationFrame(resizeFrame);
       map.setTarget(undefined);
       mapRef.current = null;
       baseLayerRef.current = null;
@@ -237,6 +288,7 @@ export function ParcelMap({
     const unresolvedParcels = visibleParcels.filter((parcel) => (
       (!parcel.boundary || parcel.ledgerAreaM2 === undefined || !parcel.category)
       && /^\d{19}$/.test(parcel.pnu)
+      && hasValidParcelLocation(parcel)
       && !resolvedBoundaries[parcel.pnu]
       && !requestedBoundaryPnusRef.current.has(parcel.pnu)
     )) ?? [];
@@ -283,19 +335,21 @@ export function ParcelMap({
     const source = vectorSourceRef.current;
     source.clear();
     const selectedCase = cases.find((item) => item.id === selectedCaseId);
-    const caseFeatures = cases.flatMap((caseRecord) => caseRecord.parcels.slice(0, 1).map((parcel) => {
+    const caseFeatures = cases.flatMap((caseRecord) => {
+      const parcel = caseRecord.parcels.find(hasValidParcelLocation);
+      if (!parcel) return [];
       const feature = new Feature({
         geometry: new Point(fromLonLat([parcel.longitude, parcel.latitude])),
         caseId: caseRecord.id,
         pnu: parcel.pnu,
       });
-      return feature;
-    }));
-    const parcelFeatures = parcels.map((parcel, index) => {
+      return [feature];
+    });
+    const parcelFeatures = parcels.filter(hasValidParcelLocation).map((parcel, index) => {
       const boundary = parcel.boundary ?? resolvedBoundaries[parcel.pnu];
       return parcelFeature(boundary ? { ...parcel, boundary } : parcel, index);
     });
-    const selectedParcelFeatures = selectedCase?.parcels.map((parcel, index) => {
+    const selectedParcelFeatures = selectedCase?.parcels.filter(hasValidParcelLocation).map((parcel, index) => {
       const boundary = parcel.boundary ?? resolvedBoundaries[parcel.pnu];
       const feature = parcelFeature(boundary ? { ...parcel, boundary } : parcel, index);
       feature.set("caseId", selectedCase.id);
@@ -303,9 +357,13 @@ export function ParcelMap({
     }) ?? [];
     source.addFeatures([...caseFeatures, ...selectedParcelFeatures, ...parcelFeatures]);
 
-    const focusedParcelFeatures = selectedParcelFeatures.length ? selectedParcelFeatures : parcelFeatures;
+    const focusedParcelFeatures = selectedParcelFeatures.length
+      ? selectedParcelFeatures
+      : parcelFeatures.length
+        ? parcelFeatures
+        : caseFeatures;
     if (focusedParcelFeatures.length) {
-      setMapMode("cadastral");
+      if (interactiveRef.current) setMapMode("cadastral");
       const selectedExtent = createEmpty();
       focusedParcelFeatures.forEach((feature) => {
         const geometry = feature.getGeometry();
@@ -325,7 +383,7 @@ export function ParcelMap({
 
   useEffect(() => {
     if (!focusLocation) return;
-    setMapMode("cadastral");
+    if (interactiveRef.current) setMapMode("cadastral");
     mapRef.current?.getView().animate({
       center: fromLonLat([focusLocation.longitude, focusLocation.latitude]),
       zoom: 18,
@@ -338,9 +396,40 @@ export function ParcelMap({
     if (view) view.animate({ zoom: (view.getZoom() ?? 13) + delta, duration: 180 });
   }
 
+  function selectMapMode(mode: MapMode) {
+    setLayerNotice(null);
+    setMapMode(mode);
+    window.requestAnimationFrame(() => {
+      mapRef.current?.updateSize();
+      mapRef.current?.renderSync();
+    });
+  }
+
+  function retryVisibleLayer() {
+    setLayerNotice(null);
+    if (mapMode === "normal") baseLayerRef.current?.getSource()?.refresh();
+    else {
+      satelliteLayerRef.current?.getSource()?.refresh();
+      if (mapMode === "satellite") hybridLayerRef.current?.getSource()?.refresh();
+      if (mapMode === "cadastral") cadastralLayerRef.current?.getSource()?.refresh();
+    }
+    mapRef.current?.updateSize();
+    mapRef.current?.renderSync();
+  }
+
   return (
     <div className="parcel-map-shell">
       <div ref={targetRef} className="parcel-map" aria-label="업무 필지 지도" />
+      {cases.length > 0 && (
+        <div className="map-context-card" aria-live="polite">
+          <strong>{selectedMapCase ? selectedMapCase.title : `${mappableCaseCount}개 업무 위치`}</strong>
+          <span>{selectedMapCase
+            ? selectedMapParcel?.address ?? "지도 위치를 확인해야 하는 업무입니다."
+            : mappableCaseCount === cases.length
+              ? "마커를 누르면 업무 상세를 확인할 수 있습니다."
+              : `${cases.length - mappableCaseCount}개 업무는 지도 위치 확인이 필요합니다.`}</span>
+        </div>
+      )}
       <div className="map-attribution">지도·연속지적도 © VWorld · 참고용</div>
       <div className="map-layer-switch" aria-label="지도 유형">
         {(["normal", "satellite", "cadastral"] as const).map((mode) => (
@@ -348,7 +437,7 @@ export function ParcelMap({
             type="button"
             className={mapMode === mode ? "active" : ""}
             aria-pressed={mapMode === mode}
-            onClick={() => setMapMode(mode)}
+            onClick={() => selectMapMode(mode)}
             key={mode}
           >
             {mode === "normal" ? "일반" : mode === "satellite" ? "위성" : "지적도"}
@@ -359,7 +448,7 @@ export function ParcelMap({
         <button type="button" onClick={() => zoomBy(1)} aria-label="확대">+</button>
         <button type="button" onClick={() => zoomBy(-1)} aria-label="축소">−</button>
       </div>
-      {layerMessage && <div className="map-layer-notice" role="status">{layerMessage}</div>}
+      {layerNotice && <div className="map-layer-notice" role="status"><span>{layerNotice.message}</span><div><button type="button" onClick={retryVisibleLayer}>다시 시도</button>{mapMode !== "normal" && <button type="button" onClick={() => selectMapMode("normal")}>일반지도 보기</button>}</div></div>}
       {interactive && <div className="map-hint">지도를 눌러 필지를 확인하세요</div>}
     </div>
   );
