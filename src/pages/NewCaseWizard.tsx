@@ -177,6 +177,7 @@ export function NewCaseWizard() {
   const [editReady, setEditReady] = useState(!isEditing || initialDraft?.caseRecord.id === caseId);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "failed">("saved");
   const [errors, setErrors] = useState<string[]>([]);
+  const [errorToast, setErrorToast] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -232,15 +233,21 @@ export function NewCaseWizard() {
     setCaseRecord((current) => ({ ...current, ...patch, updatedAt: new Date().toISOString() }));
   }
 
+  function showErrors(messages: string[]) {
+    setErrors(messages);
+    setErrorToast(messages);
+  }
+
   function move(nextStep: number) {
     if (nextStep > step) {
       const validation = wizardStepErrors(caseRecord, step);
       if (validation.length) {
-        setErrors(validation);
+        showErrors(validation);
         return;
       }
     }
     setErrors([]);
+    setErrorToast([]);
     setStep(Math.min(7, Math.max(1, nextStep)));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -248,7 +255,7 @@ export function NewCaseWizard() {
   async function finish() {
     const validation = documentValidationErrors(caseRecord);
     if (validation.length) {
-      setErrors(validation);
+      showErrors(validation);
       return;
     }
     if (!user) return;
@@ -279,7 +286,7 @@ export function NewCaseWizard() {
       sessionStorage.removeItem(draftKey);
       navigate("/app");
     } catch (reason) {
-      setErrors([reason instanceof Error ? reason.message : "업무를 저장하지 못했습니다."]);
+      showErrors([reason instanceof Error ? reason.message : "업무를 저장하지 못했습니다."]);
     } finally {
       setSubmitting(false);
     }
@@ -359,6 +366,17 @@ export function NewCaseWizard() {
         <div><span>{step} / 7</span><div className="wizard-footer-progress"><i style={{ width: `${(step / 7) * 100}%` }} /></div></div>
         {step < 7 ? <button type="button" className="button button-primary" onClick={() => move(step + 1)}>다음 <ArrowRight size={18} /></button> : <button type="button" className="button button-primary" onClick={finish} disabled={submitting}>{submitting ? <><LoaderCircle size={18} className="spin" /> 저장 중 {uploadProgress ? `${uploadProgress}%` : ""}</> : <><CheckCircle2 size={18} /> {isEditing ? "수정 저장" : "업무 시작"}</>}</button>}
       </footer>
+
+      {errorToast.length > 0 && (
+        <div className="toast" role="alert" aria-live="assertive" aria-atomic="true">
+          <CircleAlert size={18} />
+          <span>
+            <strong>확인이 필요합니다</strong><br />
+            {errorToast[0]}{errorToast.length > 1 ? ` 외 ${errorToast.length - 1}건` : ""}
+          </span>
+          <button type="button" onClick={() => setErrorToast([])} aria-label="알림 닫기"><X size={16} /></button>
+        </div>
+      )}
     </div>
   );
 }
