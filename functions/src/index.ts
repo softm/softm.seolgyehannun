@@ -252,22 +252,19 @@ async function requireRole(request: CallableRequest, organizationId: string, rol
 export const listUserOrganizations = onCall({ enforceAppCheck: false }, async (request) => {
   requireCallableAppCheck(request);
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  const memberships = await db.collectionGroup("members").where("uid", "==", request.auth.uid).get();
-  const activeMemberships = memberships.docs.filter((membership) => membership.data().status === "active");
-  const organizationRefs = activeMemberships.flatMap((membership) => {
-    const organization = membership.ref.parent.parent;
-    return organization ? [organization] : [];
-  });
-  const organizations = organizationRefs.length ? await db.getAll(...organizationRefs) : [];
-  const names = new Map(organizations.map((organization) => [organization.id, String(organization.data()?.name ?? "이름 없는 업무공간")]));
+  const organizations = await db.collection("organizations").select("name").get();
+  const memberships = organizations.empty
+    ? []
+    : await db.getAll(...organizations.docs.map((organization) => organization.ref.collection("members").doc(request.auth!.uid)));
   return {
-    organizations: activeMemberships.map((membership) => {
-      const organizationId = membership.ref.parent.parent!.id;
-      return {
-        id: organizationId,
-        name: names.get(organizationId) ?? "이름 없는 업무공간",
-        role: String(membership.data().role ?? "viewer"),
-      };
+    organizations: organizations.docs.flatMap((organization, index) => {
+      const membership = memberships[index];
+      if (!membership?.exists || membership.data()?.status !== "active") return [];
+      return [{
+        id: organization.id,
+        name: String(organization.data().name ?? "이름 없는 업무공간"),
+        role: String(membership.data()?.role ?? "viewer"),
+      }];
     }).sort((left, right) => left.name.localeCompare(right.name, "ko")),
   };
 });
