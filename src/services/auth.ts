@@ -11,7 +11,7 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { demoUser } from "../data/demo";
-import type { AppUser, OrganizationRole } from "../types";
+import type { AppUser, OrganizationRole, OrganizationWorkspace } from "../types";
 import { firebaseConfigured, getFirebaseServices } from "./firebase";
 
 const demoSessionKey = "seolgye-hannun.demo-session";
@@ -34,6 +34,15 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
     role = (membership.data()?.role as OrganizationRole | undefined) ?? role;
   }
 
+  let organizations: OrganizationWorkspace[] = organizationId
+    ? [{ id: organizationId, name: organizationName, role }]
+    : [];
+  try {
+    organizations = await listCurrentUserOrganizations();
+  } catch {
+    // Keep the current organization usable while an older Functions deployment is being upgraded.
+  }
+
   return {
     uid: user.uid,
     displayName: user.displayName || user.email?.split("@")[0] || "사용자",
@@ -42,7 +51,30 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
     organizationName,
     role,
     isDemo: false,
+    organizations,
   };
+}
+
+export async function listCurrentUserOrganizations(): Promise<OrganizationWorkspace[]> {
+  const services = getFirebaseServices();
+  if (!services?.auth.currentUser) throw new Error("로그인이 필요합니다.");
+  const listOrganizations = httpsCallable<void, { organizations: OrganizationWorkspace[] }>(
+    services.functions,
+    "listUserOrganizations",
+  );
+  const result = await listOrganizations();
+  return result.data.organizations;
+}
+
+export async function switchCurrentOrganization(organizationId: string): Promise<AppUser> {
+  const services = getFirebaseServices();
+  if (!services?.auth.currentUser) throw new Error("로그인이 필요합니다.");
+  const switchOrganization = httpsCallable<{ organizationId: string }, { organizationId: string }>(
+    services.functions,
+    "switchUserOrganization",
+  );
+  await switchOrganization({ organizationId });
+  return mapFirebaseUser(services.auth.currentUser);
 }
 
 export async function reloadCurrentUser(): Promise<AppUser> {
