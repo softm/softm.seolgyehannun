@@ -16,6 +16,15 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "설계한눈",
+        "supportEmail": "softmnet@gmail.com"
+      }
+    }
+  },
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
