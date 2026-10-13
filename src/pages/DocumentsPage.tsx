@@ -36,15 +36,21 @@ export function DocumentsPage() {
     return () => { active = false; };
   }, [cases, user?.isDemo]);
 
-  async function generate(caseRecord: CaseRecord, type: "pdf" | "docx") {
+  async function generate(caseRecord: CaseRecord, type: "pdf" | "docx", templateId?: string) {
     if (viewer) return;
-    setPending(`${caseRecord.id}-${type}`);
+    const pendingKey = `${caseRecord.id}-${templateId ? `${templateId}-` : ""}${type}`;
+    setPending(pendingKey);
     setMessage("");
     try {
-      if (user?.isDemo) {
+      if (templateId) {
+        if (type === "pdf") await exportCasePdf(caseRecord, templateId);
+        else await exportCaseDocx(caseRecord, templateId);
+        const documentName = buildCaseDocumentModels(caseRecord, [templateId])[0]?.title ?? "선택 문서";
+        setMessage(`${documentName} ${type.toUpperCase()} 파일을 개별 다운로드했습니다.`);
+      } else if (user?.isDemo) {
         if (type === "pdf") await exportCasePdf(caseRecord);
         else await exportCaseDocx(caseRecord);
-        setMessage(`${type.toUpperCase()} 편집·검토 파일을 만들었습니다.`);
+        setMessage(`선택 문서 전체 ${type.toUpperCase()} 파일을 만들었습니다.`);
       } else {
         const result = await generateAndOpenCaseDocument(caseRecord, type);
         setDisplayCases((current) => current.map((item) => item.id === caseRecord.id ? {
@@ -150,7 +156,7 @@ function DocumentWorkspace({
   message: string;
   onMessage: (message: string) => void;
   onSave: (caseRecord: CaseRecord) => Promise<void>;
-  onGenerate: (caseRecord: CaseRecord, type: "pdf" | "docx") => Promise<void>;
+  onGenerate: (caseRecord: CaseRecord, type: "pdf" | "docx", templateId?: string) => Promise<void>;
   onOpenExisting: (path: string, label: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(caseRecord);
@@ -167,10 +173,10 @@ function DocumentWorkspace({
 
   return (
     <div className="simple-page document-studio-page">
-      <header className="page-header document-studio-header"><div><Link to="/app/documents" className="back-link"><ArrowLeft size={16} /> 문서 목록</Link><span className="page-kicker">{caseRecord.id}</span><h1>{caseRecord.title}</h1><p>{models.length}종 문서가 공통정보와 연결되어 있습니다.</p></div><div className="studio-actions"><button type="button" className="button button-secondary" onClick={() => void onSave(draft)} disabled={viewer || Boolean(pending)}><Save size={17} /> {pending === `${draft.id}-save` ? "저장 중" : "초안 저장"}</button><button type="button" className="button button-secondary" onClick={() => void onGenerate(draft, "docx")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> DOCX</button><button type="button" className="button button-primary" onClick={() => void onGenerate(draft, "pdf")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> PDF 제출본</button></div></header>
+      <header className="page-header document-studio-header"><div><Link to="/app/documents" className="back-link"><ArrowLeft size={16} /> 문서 목록</Link><span className="page-kicker">{caseRecord.id}</span><h1>{caseRecord.title}</h1><p>{models.length}종 문서가 공통정보와 연결되어 있습니다.</p></div><div className="studio-actions"><button type="button" className="button button-secondary" onClick={() => void onSave(draft)} disabled={viewer || Boolean(pending)}><Save size={17} /> {pending === `${draft.id}-save` ? "저장 중" : "초안 저장"}</button><button type="button" className="button button-secondary" onClick={() => void onGenerate(draft, "docx")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> 전체 DOCX</button><button type="button" className="button button-primary" onClick={() => void onGenerate(draft, "pdf")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> 전체 PDF</button></div></header>
       {message && <div className="settings-save-message" role="status">{message}</div>}
       <div className={`document-health ${errors.length ? "has-errors" : "ready"}`}><ShieldCheck size={19} /><div><strong>{errors.length ? `저장 차단 오류 ${errors.length}건` : "공통정보 저장 가능"}</strong><span>제출 전 확인 {warnings.length}건 · 선택 문서 {models.length}종</span></div>{errors.length > 0 && <ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul>}</div>
-      <DocumentDraftEditor caseRecord={draft} onChange={patchDraft} readOnly={viewer} />
+      <DocumentDraftEditor caseRecord={draft} onChange={patchDraft} onDownload={(templateId, type) => void onGenerate(draft, type, templateId)} downloadPending={pending} readOnly={viewer} />
       <section className="table-card version-history"><div className="card-title"><div><h3>제출본 버전</h3><p>생성 시점의 사건 값과 문서 선택을 고정한 이력입니다.</p></div></div>{caseRecord.documentVersions.length ? <div className="version-list">{[...caseRecord.documentVersions].sort((a, b) => b.version - a.version).map((version) => <article key={version.id}><div><strong>제출본 v{version.version}</strong><small>{new Date(version.createdAt).toLocaleString("ko-KR")} · {version.templateIds?.length ?? "기존"}종 문서</small></div><span>{version.submittedAt ? "제출 완료" : "생성 완료"}</span><div>{version.docxPath && <button type="button" onClick={() => void onOpenExisting(version.docxPath!, `${version.id}-docx`)}><Download size={15} /> DOCX</button>}{version.pdfPath && <button type="button" onClick={() => void onOpenExisting(version.pdfPath!, `${version.id}-pdf`)}><Download size={15} /> PDF</button>}</div></article>)}</div> : <div className="empty-version"><FileText /><strong>아직 생성된 제출본이 없습니다.</strong><span>오른쪽 위에서 DOCX 또는 PDF를 생성하면 이력으로 보존됩니다.</span></div>}</section>
     </div>
   );
