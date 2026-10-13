@@ -45,6 +45,12 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
   };
 }
 
+export async function reloadCurrentUser(): Promise<AppUser> {
+  const services = getFirebaseServices();
+  if (!services?.auth.currentUser) throw new Error("로그인이 필요합니다.");
+  return mapFirebaseUser(services.auth.currentUser);
+}
+
 export function observeUser(callback: (user: AppUser | null) => void): () => void {
   if (!firebaseConfigured) {
     callback(localStorage.getItem(demoSessionKey) === "active" ? demoUser : null);
