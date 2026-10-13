@@ -9,18 +9,23 @@ export interface PermitCatalogItem {
   icon: string;
   accent: string;
   canBePrimary: boolean;
+  phase?: "first" | "extension";
+  canBeRelated?: boolean;
+  relatedPrimaryCatalogIds?: string[];
+  verifiedAt?: string;
 }
 
 export const defaultPermitCatalog: PermitCatalogItem[] = [
-  { id: "factory", name: "공장설립", description: "공장 신설·증설·업종 변경", category: "main", legalBasis: "산업집적활성화 및 공장설립에 관한 법률", icon: "Factory", accent: "blue", canBePrimary: true },
-  { id: "development", name: "개발행위", description: "토지 형질변경·건축물 설치", category: "main", legalBasis: "국토의 계획 및 이용에 관한 법률", icon: "Sprout", accent: "green", canBePrimary: true },
-  { id: "road", name: "도로점용", description: "도로 구역 점용·굴착", category: "main", legalBasis: "도로법", icon: "Route", accent: "orange", canBePrimary: true },
-  { id: "national-property", name: "국유재산", description: "국유재산 사용허가", category: "main", legalBasis: "국유재산법", icon: "Landmark", accent: "purple", canBePrimary: true },
-  { id: "public-property", name: "공유재산", description: "공유재산 사용허가", category: "main", legalBasis: "공유재산 및 물품 관리법", icon: "Building2", accent: "coral", canBePrimary: true },
-  { id: "public-water", name: "공유수면", description: "공유수면 점용·사용", category: "main", legalBasis: "공유수면 관리 및 매립에 관한 법률", icon: "Waves", accent: "sky", canBePrimary: true },
-  { id: "agri-facility", name: "농업생산기반시설", description: "농업기반시설 목적 외 사용", category: "main", legalBasis: "농어촌정비법", icon: "Wheat", accent: "gold", canBePrimary: true },
-  { id: "forest-conversion", name: "산지전용", description: "산지전용 허가·신고 검토", category: "agenda", legalBasis: "산지관리법", icon: "Trees", accent: "green", canBePrimary: false },
-  { id: "farmland-conversion", name: "농지전용", description: "농지전용 허가·협의 검토", category: "agenda", legalBasis: "농지법", icon: "Tractor", accent: "gold", canBePrimary: false },
+  { id: "development", name: "개발행위", description: "토지형질변경·공작물 설치", category: "main", legalBasis: "국토의 계획 및 이용에 관한 법률", icon: "Sprout", accent: "green", canBePrimary: true, phase: "first", canBeRelated: true, verifiedAt: "2026-10-13" },
+  { id: "farmland-conversion", name: "농지전용", description: "농지전용 허가·변경허가", category: "main", legalBasis: "농지법", icon: "Tractor", accent: "gold", canBePrimary: true, phase: "first", canBeRelated: true, verifiedAt: "2026-10-13" },
+  { id: "forest-conversion", name: "산지전용", description: "산지전용 허가·변경허가", category: "main", legalBasis: "산지관리법", icon: "Trees", accent: "green", canBePrimary: true, phase: "first", canBeRelated: true, verifiedAt: "2026-10-13" },
+  { id: "land-reclamation", name: "개간", description: "개간사업 시행계획 승인 등", category: "agenda", legalBasis: "농어촌정비법 등 관계 법령", icon: "Sprout", accent: "green", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "road", name: "도로점용", description: "도로 구역 점용·굴착", category: "agenda", legalBasis: "도로법", icon: "Route", accent: "orange", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "national-property", name: "국유재산 사용", description: "국유재산 사용허가", category: "agenda", legalBasis: "국유재산법", icon: "Landmark", accent: "purple", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "public-property", name: "공유재산 사용", description: "공유재산 사용허가", category: "agenda", legalBasis: "공유재산 및 물품 관리법", icon: "Building2", accent: "coral", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "public-water", name: "공유수면", description: "공유수면 점용·사용", category: "agenda", legalBasis: "공유수면 관리 및 매립에 관한 법률", icon: "Waves", accent: "sky", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "agri-facility", name: "농업생산기반시설", description: "농업기반시설 목적 외 사용", category: "agenda", legalBasis: "농어촌정비법", icon: "Wheat", accent: "gold", canBePrimary: false, phase: "extension", canBeRelated: true },
+  { id: "factory", name: "공장설립", description: "공장 신설·증설·업종 변경", category: "agenda", legalBasis: "산업집적활성화 및 공장설립에 관한 법률", icon: "Factory", accent: "blue", canBePrimary: false, phase: "extension", canBeRelated: true },
 ];
 
 export function validatePermitComposition(permits: PermitSelection[]): string[] {
