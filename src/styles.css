@@ -998,6 +998,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .template-badges span { padding: 4px 7px; border-radius: 6px; background: #eff3f5; color: #667680; font-weight: 750; }
 .template-badges .official-reference { background: var(--mint-100); color: var(--teal-800); }
 .template-badges .office-template { background: #fff4e5; color: #9a6308; }
+.official-form-source { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; color: #5f717c; font-size: 12px; }
+.official-form-source strong { color: var(--teal-800); }
+.template-format-status { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
+.template-format-status span { padding: 4px 7px; border: 1px solid #d2e4e0; border-radius: 6px; background: #f5fbf9; color: #55716b; font-size: 12px; font-weight: 750; }
+.template-source-links { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 9px; }
+.template-source-links a { color: var(--teal-700); display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 750; }
 .linked-data-banner { min-height: 64px; margin: 18px 0; padding: 12px; border: 1px solid #cce2de; border-radius: 11px; background: #f0faf7; color: var(--teal-700); display: flex; align-items: center; gap: 10px; }
 .linked-data-banner > div { display: grid; gap: 3px; }
 .linked-data-banner span { color: #647974; }
