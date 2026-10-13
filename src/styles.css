@@ -410,6 +410,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .case-list-item { content-visibility: auto; contain-intrinsic-size: 133px; }
 .case-list-item:hover { border-color: #b5ceca; }
 .case-list-item.selected { border-color: var(--teal-700); box-shadow: 0 0 0 2px rgba(8,118,109,0.1); }
+.case-list-detail-host { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; }
+.case-list-detail-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: rgba(12,28,46,0.48); cursor: pointer; }
+.case-list-detail-host .case-detail-card { width: min(720px, calc(100vw - 48px)); max-height: min(760px, calc(100vh - 48px)); position: relative; right: auto; bottom: auto; z-index: 1; }
+.case-list-detail-host .detail-close { display: grid; }
 .case-item-top { display: flex; align-items: center; gap: 6px; }
 .status-badge { min-height: 23px; padding: 0 7px; border-radius: 7px; display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--status-color) 10%, white); color: var(--status-color); font-size: 8px; font-weight: 800; }
 .status-badge > span { width: 5px; height: 5px; border-radius: 50%; background: var(--status-color); }
@@ -1215,6 +1219,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .case-map-panel, .parcel-map-shell, .parcel-map { min-height: 560px; }
   .case-detail-card { width: 100%; max-height: 76%; border-radius: 18px 18px 0 0; right: 0; bottom: -100%; transition: bottom 220ms ease; }
   .case-detail-card.open { bottom: 0; }
+  .case-list-detail-host { place-items: end center; padding: 0; }
+  .case-list-detail-host .case-detail-card { width: 100%; max-height: 82vh; border-radius: 18px 18px 0 0; position: relative; right: auto; bottom: auto; }
   .detail-drag-handle { width: 42px; height: 4px; margin: 7px auto 0; border-radius: 3px; background: #d0d7dc; display: block; }
   .detail-close { display: grid; }
   .case-workspace.list-only .case-list { display: block; max-height: none; }
