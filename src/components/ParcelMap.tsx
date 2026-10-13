@@ -14,8 +14,8 @@ import Point from "ol/geom/Point";
 import { createEmpty, extend as extendExtent } from "ol/extent";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Circle as CircleStyle, Fill, Stroke, Style } from "ol/style";
-import type { CaseRecord, ParcelSnapshot } from "../types";
-import { vworldApiUrl, vworldAuthorizedHeaders } from "../services/vworld";
+import type { CaseRecord, ParcelBoundary, ParcelSnapshot } from "../types";
+import { lookupParcel, vworldApiUrl, vworldAuthorizedHeaders } from "../services/vworld";
 
 type MapMode = "normal" | "satellite" | "cadastral";
 
@@ -75,6 +75,7 @@ export function ParcelMap({
 }: ParcelMapProps) {
   const [mapMode, setMapMode] = useState<MapMode>(interactive ? "cadastral" : "normal");
   const [layerMessage, setLayerMessage] = useState("");
+  const [resolvedBoundaries, setResolvedBoundaries] = useState<Record<string, ParcelBoundary>>({});
   const targetRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const vectorSourceRef = useRef(new VectorSource());
@@ -87,6 +88,7 @@ export function ParcelMap({
   const onMapClickRef = useRef(onMapClick);
   const onCaseSelectRef = useRef(onCaseSelect);
   const mapModeRef = useRef(mapMode);
+  const requestedBoundaryPnusRef = useRef(new Set<string>());
   selectedCaseIdRef.current = selectedCaseId;
   interactiveRef.current = interactive;
   onMapClickRef.current = onMapClick;
@@ -226,6 +228,47 @@ export function ParcelMap({
   }, [mapMode]);
 
   useEffect(() => {
+    const selectedCase = cases.find((item) => item.id === selectedCaseId);
+    const unresolvedParcels = selectedCase?.parcels.filter((parcel) => (
+      !parcel.boundary
+      && /^\d{19}$/.test(parcel.pnu)
+      && !resolvedBoundaries[parcel.pnu]
+      && !requestedBoundaryPnusRef.current.has(parcel.pnu)
+    )) ?? [];
+    if (!unresolvedParcels.length) return;
+
+    let cancelled = false;
+    unresolvedParcels.forEach((parcel) => requestedBoundaryPnusRef.current.add(parcel.pnu));
+    void Promise.all(unresolvedParcels.map(async (parcel) => {
+      try {
+        const resolved = await lookupParcel(parcel.longitude, parcel.latitude, {
+          id: parcel.id,
+          title: parcel.address,
+          address: parcel.address,
+          roadAddress: parcel.roadAddress ?? "",
+          pnu: parcel.pnu,
+          longitude: parcel.longitude,
+          latitude: parcel.latitude,
+          category: "parcel",
+        });
+        return resolved.boundary ? [parcel.pnu, resolved.boundary] as const : null;
+      } catch {
+        requestedBoundaryPnusRef.current.delete(parcel.pnu);
+        return null;
+      }
+    })).then((entries) => {
+      if (cancelled) return;
+      const boundaries = entries.filter((entry): entry is readonly [string, ParcelBoundary] => Boolean(entry));
+      if (!boundaries.length) return;
+      setResolvedBoundaries((current) => ({ ...current, ...Object.fromEntries(boundaries) }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cases, resolvedBoundaries, selectedCaseId]);
+
+  useEffect(() => {
     const source = vectorSourceRef.current;
     source.clear();
     const selectedCase = cases.find((item) => item.id === selectedCaseId);
@@ -239,7 +282,8 @@ export function ParcelMap({
     }));
     const parcelFeatures = parcels.map(parcelFeature);
     const selectedParcelFeatures = selectedCase?.parcels.map((parcel, index) => {
-      const feature = parcelFeature(parcel, index);
+      const boundary = parcel.boundary ?? resolvedBoundaries[parcel.pnu];
+      const feature = parcelFeature(boundary ? { ...parcel, boundary } : parcel, index);
       feature.set("caseId", selectedCase.id);
       return feature;
     }) ?? [];
@@ -270,7 +314,7 @@ export function ParcelMap({
       });
     }
     mapRef.current?.getLayers().changed();
-  }, [cases, parcels, selectedCaseId, selectedCaseFitPadding]);
+  }, [cases, parcels, resolvedBoundaries, selectedCaseId, selectedCaseFitPadding]);
 
   useEffect(() => {
     if (!focusLocation) return;
