@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   AlertTriangle,
+  ArrowUpDown,
   ArrowRight,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ClipboardList,
+  Columns3,
   Download,
   FileText,
   Filter,
@@ -16,12 +19,20 @@ import {
   Plus,
   Search,
   Sparkles,
+  Table2,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { useAuth, useCases } from "../context";
 import { deadlineDistance, deadlineLabel, isOverdue } from "../domain/deadline";
+import {
+  countActiveCaseFilters,
+  filterAndSortCases,
+  type CaseDeadlineFilter,
+  type CaseSortMode,
+  type CaseViewMode,
+} from "../domain/caseWorkspace";
 import { canTransitionStatus, defaultStatuses, validateCompletion } from "../domain/status";
 import { documentValidationErrors } from "../domain/documentModel";
 import { exportCaseDocx, exportCasePdf } from "../services/documentExport";
@@ -34,12 +45,38 @@ import { StatusBadge } from "../components/StatusBadge";
 
 type DetailTab = "overview" | "deadline" | "files" | "history";
 const DASHBOARD_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [48, 48, 360, 48];
+const WORKSPACE_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [48, 48, 48, 48];
+
+interface CaseWorkspacePreference {
+  viewMode: CaseViewMode;
+  sortMode: CaseSortMode;
+}
+
+function readWorkspacePreference(key: string): CaseWorkspacePreference | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(key) ?? "null") as Partial<CaseWorkspacePreference> | null;
+    if (!stored || !["table", "board", "map"].includes(stored.viewMode ?? "")) return null;
+    if (!["deadline", "updated", "created", "title"].includes(stored.sortMode ?? "")) return null;
+    return stored as CaseWorkspacePreference;
+  } catch {
+    return null;
+  }
+}
 
 export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
   const { user } = useAuth();
   const { cases, loading, error, selectedCase, selectedCaseId, selectCase, persistCase } = useCases();
+  const workspacePreferenceKey = `seolgye-hannun:case-workspace:${user?.organizationId ?? "unknown"}:${user?.uid ?? "unknown"}`;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CaseStatusId | "all">("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [permitFilter, setPermitFilter] = useState("");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("");
+  const [deadlineFilter, setDeadlineFilter] = useState<CaseDeadlineFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<CaseViewMode>(() => readWorkspacePreference(workspacePreferenceKey)?.viewMode ?? "table");
+  const [sortMode, setSortMode] = useState<CaseSortMode>(() => readWorkspacePreference(workspacePreferenceKey)?.sortMode ?? "deadline");
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -55,6 +92,15 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
   }, [user]);
 
   useEffect(() => {
+    if (!listOnly || !user || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(workspacePreferenceKey, JSON.stringify({ viewMode, sortMode } satisfies CaseWorkspacePreference));
+    } catch {
+      // 브라우저 저장소를 사용할 수 없어도 현재 세션의 보기 전환은 유지합니다.
+    }
+  }, [listOnly, sortMode, user, viewMode, workspacePreferenceKey]);
+
+  useEffect(() => {
     if (!listOnly || !detailOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setDetailOpen(false);
@@ -68,18 +114,39 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
     [customStatuses],
   );
 
-  const filteredCases = useMemo(() => {
-    const normalized = query.trim().replace(/\s+/g, "").toLowerCase();
-    return cases
-      .filter((item) => statusFilter === "all" || item.status === statusFilter)
-      .filter((item) => !normalized || [item.title, item.primaryPermitName, item.assigneeName, ...item.parcels.map((parcel) => parcel.address)]
-        .join("").replace(/\s+/g, "").toLowerCase().includes(normalized))
-      .sort((a, b) => {
-        if (!a.nextDeadlineAt) return 1;
-        if (!b.nextDeadlineAt) return -1;
-        return a.nextDeadlineAt.localeCompare(b.nextDeadlineAt);
-      });
-  }, [cases, query, statusFilter]);
+  const filteredCases = useMemo(() => filterAndSortCases(cases, {
+    query,
+    status: statusFilter,
+    assignee: assigneeFilter,
+    permit: permitFilter,
+    jurisdiction: jurisdictionFilter,
+    deadline: deadlineFilter,
+    sort: sortMode,
+  }), [assigneeFilter, cases, deadlineFilter, jurisdictionFilter, permitFilter, query, sortMode, statusFilter]);
+
+  const filterOptions = useMemo(() => ({
+    assignees: [...new Set(cases.map((item) => item.assigneeName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko-KR")),
+    permits: [...new Set(cases.map((item) => item.primaryPermitName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko-KR")),
+    jurisdictions: [...new Set(cases.map((item) => item.jurisdictionName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko-KR")),
+  }), [cases]);
+
+  const activeFilterCount = countActiveCaseFilters({
+    query,
+    status: statusFilter,
+    assignee: assigneeFilter,
+    permit: permitFilter,
+    jurisdiction: jurisdictionFilter,
+    deadline: deadlineFilter,
+    sort: sortMode,
+  });
+
+  const boardStatuses = statusFilter === "all"
+    ? [...allStatuses].sort((a, b) => {
+      const aHasCases = filteredCases.some((caseRecord) => caseRecord.status === a.id);
+      const bHasCases = filteredCases.some((caseRecord) => caseRecord.status === b.id);
+      return aHasCases === bHasCases ? a.order - b.order : aHasCases ? -1 : 1;
+    })
+    : allStatuses.filter((status) => status.id === statusFilter);
 
   const overview = useMemo(() => ({
     dueToday: cases.filter((item) => item.nextDeadlineAt && deadlineDistance(item.nextDeadlineAt) === 0).length,
@@ -91,6 +158,15 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
     selectCase(caseId);
     setDetailOpen(true);
     setDetailTab("overview");
+  }
+
+  function resetFilters() {
+    setQuery("");
+    setStatusFilter("all");
+    setAssigneeFilter("");
+    setPermitFilter("");
+    setJurisdictionFilter("");
+    setDeadlineFilter("all");
   }
 
   async function changeStatus(nextStatus: CaseStatusId) {
@@ -184,14 +260,24 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
 
       <section className="workspace-card">
         <div className="workspace-toolbar">
-          <div className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="업무명, 지번, 담당자 검색" aria-label="업무 검색" />{query && <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기"><X size={16} /></button>}</div>
+          <div className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="업무명, 신청인, 지번, PNU 검색" aria-label="업무 검색" />{query && <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기"><X size={16} /></button>}</div>
           <div className="status-filters" aria-label="상태 필터">
             <button type="button" className={statusFilter === "all" ? "active" : ""} onClick={() => setStatusFilter("all")}>전체 <span>{cases.length}</span></button>
             {defaultStatuses.filter((item) => ["processing", "revision-requested", "completed"].includes(item.id)).map((status) => (
               <button type="button" key={status.id} className={statusFilter === status.id ? "active" : ""} onClick={() => setStatusFilter(status.id)}>{status.label} <span>{cases.filter((item) => item.status === status.id).length}</span></button>
             ))}
           </div>
-          <button type="button" className="filter-button"><Filter size={17} /> 필터 <ChevronDown size={15} /></button>
+          <div className="workspace-toolbar-actions">
+            <button type="button" className={`filter-button ${filtersOpen ? "active" : ""}`} onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="case-filter-panel"><Filter size={17} /> 필터 {activeFilterCount > 0 && <span>{activeFilterCount}</span>}<ChevronDown size={15} /></button>
+            <label className="case-sort-control"><ArrowUpDown size={16} /><span className="sr-only">업무 정렬</span><select value={sortMode} onChange={(event) => setSortMode(event.target.value as CaseSortMode)} aria-label="업무 정렬"><option value="deadline">기한 임박순</option><option value="updated">최근 수정순</option><option value="created">최근 등록순</option><option value="title">업무명순</option></select><ChevronDown size={14} /></label>
+            {listOnly && (
+              <div className="case-view-switch" role="group" aria-label="업무 보기 방식">
+                <button type="button" aria-pressed={viewMode === "table"} className={viewMode === "table" ? "active" : ""} onClick={() => setViewMode("table")}><Table2 size={17} /><span>표</span></button>
+                <button type="button" aria-pressed={viewMode === "board"} className={viewMode === "board" ? "active" : ""} onClick={() => setViewMode("board")}><Columns3 size={17} /><span>보드</span></button>
+                <button type="button" aria-pressed={viewMode === "map"} className={viewMode === "map" ? "active" : ""} onClick={() => setViewMode("map")}><MapIcon size={17} /><span>지도</span></button>
+              </div>
+            )}
+          </div>
           {!listOnly && (
             <div className="mobile-view-switch" role="group" aria-label="목록 지도 전환">
               <button type="button" className={mobileView === "list" ? "active" : ""} onClick={() => setMobileView("list")}><List size={17} /> 목록</button>
@@ -200,24 +286,73 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
           )}
         </div>
 
+        {filtersOpen && (
+          <div className="case-filter-panel" id="case-filter-panel">
+            <label><span>담당자</span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">전체 담당자</option>{filterOptions.assignees.map((name) => <option value={name} key={name}>{name}</option>)}</select><ChevronDown size={15} /></label>
+            <label><span>허가 유형</span><select value={permitFilter} onChange={(event) => setPermitFilter(event.target.value)}><option value="">전체 허가</option>{filterOptions.permits.map((name) => <option value={name} key={name}>{name}</option>)}</select><ChevronDown size={15} /></label>
+            <label><span>관할기관</span><select value={jurisdictionFilter} onChange={(event) => setJurisdictionFilter(event.target.value)}><option value="">전체 관할</option>{filterOptions.jurisdictions.map((name) => <option value={name} key={name}>{name}</option>)}</select><ChevronDown size={15} /></label>
+            <label><span>기한</span><select value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value as CaseDeadlineFilter)}><option value="all">전체 기한</option><option value="overdue">지연</option><option value="today">오늘 마감</option><option value="week">7일 이내</option><option value="none">기한 없음</option></select><ChevronDown size={15} /></label>
+            <button type="button" className="case-filter-reset" onClick={resetFilters} disabled={activeFilterCount === 0 && !query}>조건 초기화</button>
+          </div>
+        )}
+
         {error && <div className="inline-error" role="alert">{error}</div>}
-        <div className={`case-workspace ${listOnly ? "list-only" : ""} mobile-${mobileView}`}>
-          <div className="case-list-panel">
-            <div className="case-list-head"><span>{filteredCases.length}개 업무</span><button type="button">기한 임박순 <ChevronDown size={14} /></button></div>
-            {loading ? (
-              <div className="case-list-loading">업무를 불러오는 중입니다…</div>
-            ) : filteredCases.length ? (
-              <div className="case-list">
-                {filteredCases.map((caseRecord) => (
-                  <CaseListItem key={caseRecord.id} caseRecord={caseRecord} statuses={allStatuses} selected={caseRecord.id === selectedCaseId} onClick={() => openCase(caseRecord.id)} />
-                ))}
+        {listOnly ? (
+          <div className={`case-explorer case-view-${viewMode} ${detailOpen && selectedCase ? "has-inspector" : ""}`}>
+            <section className="case-view-area" aria-label={`${viewMode === "table" ? "표" : viewMode === "board" ? "보드" : "지도"} 보기`}>
+              <div className="case-results-head">
+                <div><strong>{filteredCases.length}</strong><span>개 업무</span>{activeFilterCount > 0 && <em>필터 {activeFilterCount}개 적용</em>}</div>
+                {(activeFilterCount > 0 || query) && <button type="button" onClick={resetFilters}>모든 조건 지우기 <X size={14} /></button>}
               </div>
-            ) : (
-              <div className="empty-list"><Search /><strong>조건에 맞는 업무가 없습니다</strong><span>검색어나 상태 필터를 바꿔보세요.</span></div>
+              {loading ? (
+                <div className="case-list-loading">업무를 불러오는 중입니다…</div>
+              ) : filteredCases.length ? (
+                <>
+                  {viewMode === "table" && <CaseTableView cases={filteredCases} statuses={allStatuses} selectedCaseId={selectedCaseId} onCaseOpen={openCase} viewer={user?.role === "viewer"} />}
+                  {viewMode === "board" && <CaseBoardView cases={filteredCases} statuses={boardStatuses} selectedCaseId={selectedCaseId} onCaseOpen={openCase} viewer={user?.role === "viewer"} />}
+                  {viewMode === "map" && <CaseMapView cases={filteredCases} statuses={allStatuses} selectedCaseId={selectedCaseId} onCaseOpen={openCase} />}
+                </>
+              ) : (
+                <div className="empty-list"><Search /><strong>조건에 맞는 업무가 없습니다</strong><span>검색어나 필터를 바꿔보세요.</span><button type="button" onClick={resetFilters}>조건 초기화</button></div>
+              )}
+            </section>
+            {selectedCase && detailOpen && (
+              <>
+                <button type="button" className="case-inspector-backdrop" onClick={() => setDetailOpen(false)} aria-label="업무 상세 닫기" />
+                <div className="case-inspector">
+                  <CaseDetailCard
+                    caseRecord={selectedCase}
+                    tab={detailTab}
+                    setTab={setDetailTab}
+                    open
+                    close={() => setDetailOpen(false)}
+                    onStatusChange={changeStatus}
+                    onExport={exportDocument}
+                    exporting={exporting}
+                    viewer={user?.role === "viewer"}
+                    statuses={allStatuses}
+                    onAttachmentOpen={openAttachment}
+                  />
+                </div>
+              </>
             )}
           </div>
-
-          {!listOnly && (
+        ) : (
+          <div className={`case-workspace mobile-${mobileView}`}>
+            <div className="case-list-panel">
+              <div className="case-list-head"><span>{filteredCases.length}개 업무</span><span>{({ deadline: "기한 임박순", updated: "최근 수정순", created: "최근 등록순", title: "업무명순" } as const)[sortMode]}</span></div>
+              {loading ? (
+                <div className="case-list-loading">업무를 불러오는 중입니다…</div>
+              ) : filteredCases.length ? (
+                <div className="case-list">
+                  {filteredCases.map((caseRecord) => (
+                    <CaseListItem key={caseRecord.id} caseRecord={caseRecord} statuses={allStatuses} selected={caseRecord.id === selectedCaseId} onClick={() => openCase(caseRecord.id)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-list"><Search /><strong>조건에 맞는 업무가 없습니다</strong><span>검색어나 상태 필터를 바꿔보세요.</span></div>
+              )}
+            </div>
             <div className="case-map-panel">
               <ParcelMap cases={filteredCases} selectedCaseId={selectedCaseId} selectedCaseFitPadding={DASHBOARD_SELECTED_CASE_FIT_PADDING} onCaseSelect={openCase} />
               {selectedCase && (
@@ -236,29 +371,9 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
                 />
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </section>
-
-      {listOnly && selectedCase && detailOpen && (
-        <div className="case-list-detail-host">
-          <button type="button" className="case-list-detail-backdrop" onClick={() => setDetailOpen(false)} aria-label="업무 상세 닫기" />
-          <CaseDetailCard
-            caseRecord={selectedCase}
-            tab={detailTab}
-            setTab={setDetailTab}
-            open
-            modal
-            close={() => setDetailOpen(false)}
-            onStatusChange={changeStatus}
-            onExport={exportDocument}
-            exporting={exporting}
-            viewer={user?.role === "viewer"}
-            statuses={allStatuses}
-            onAttachmentOpen={openAttachment}
-          />
-        </div>
-      )}
 
       {notice && <div className="toast" role="status"><CheckCircle2 size={18} />{notice}<button type="button" onClick={() => setNotice("")} aria-label="알림 닫기"><X size={16} /></button></div>}
     </div>
@@ -275,6 +390,124 @@ function CaseListItem({ caseRecord, statuses, selected, onClick }: { caseRecord:
       <div className="case-item-meta"><span>{caseRecord.primaryPermitName}</span><i /> <span>{caseRecord.parcels.length}필지</span><i /> <span>{caseRecord.assigneeName}</span></div>
       <div className="case-next-action"><span>{caseRecord.nextAction}</span>{deadline && <time dateTime={deadline}>{format(parseISO(deadline), "M월 d일")}</time>}</div>
     </button>
+  );
+}
+
+interface CaseCollectionViewProps {
+  cases: CaseRecord[];
+  statuses: CaseStatus[];
+  selectedCaseId: string | null;
+  onCaseOpen: (caseId: string) => void;
+  viewer: boolean;
+}
+
+function CaseDeadlineValue({ caseRecord }: { caseRecord: CaseRecord }) {
+  const distance = caseRecord.nextDeadlineAt ? deadlineDistance(caseRecord.nextDeadlineAt) : null;
+  return (
+    <span className={`case-deadline-value ${distance !== null && distance < 0 ? "late" : ""}`}>
+      <strong>{caseRecord.nextDeadlineAt ? deadlineLabel(caseRecord.nextDeadlineAt) : "기한 없음"}</strong>
+      {caseRecord.nextDeadlineAt && <time dateTime={caseRecord.nextDeadlineAt}>{format(parseISO(caseRecord.nextDeadlineAt), "yyyy. M. d.")}</time>}
+    </span>
+  );
+}
+
+function CaseQuickActions({ caseRecord, viewer }: { caseRecord: CaseRecord; viewer: boolean }) {
+  return (
+    <div className="case-quick-actions">
+      {!viewer && <Link to={`/app/cases/${caseRecord.id}/edit?step=5`} onClick={(event) => event.stopPropagation()}><Pencil size={15} /><span>수정</span></Link>}
+      <Link to={`/app/documents/${caseRecord.id}`} onClick={(event) => event.stopPropagation()}><FileText size={15} /><span>문서</span></Link>
+    </div>
+  );
+}
+
+function CaseTableView({ cases, statuses, selectedCaseId, onCaseOpen, viewer }: CaseCollectionViewProps) {
+  return (
+    <div className="case-table-shell">
+      <table className="case-table">
+        <caption className="sr-only">검색 및 필터 결과 업무 목록</caption>
+        <thead><tr><th>상태</th><th>업무명 · 신청인</th><th>주허가</th><th>필지</th><th>담당자</th><th>다음 할 일</th><th>기한</th><th>빠른 작업</th></tr></thead>
+        <tbody>
+          {cases.map((caseRecord) => {
+            const selected = caseRecord.id === selectedCaseId;
+            const representativeParcel = caseRecord.parcels[0];
+            return (
+              <tr
+                key={caseRecord.id}
+                className={selected ? "selected" : ""}
+                aria-current={selected ? "true" : undefined}
+                tabIndex={0}
+                onClick={() => onCaseOpen(caseRecord.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onCaseOpen(caseRecord.id);
+                  }
+                }}
+              >
+                <td><StatusBadge status={caseRecord.status} statuses={statuses} /></td>
+                <td><strong>{caseRecord.title}</strong><small>{caseRecord.applicantName || "신청인 미입력"} · {caseRecord.jurisdictionName || "관할 미지정"}</small><small className="case-table-mobile-meta">{caseRecord.primaryPermitName || "허가 미지정"} · {caseRecord.assigneeName || "미배정"}</small></td>
+                <td><span className="case-table-ellipsis">{caseRecord.primaryPermitName || "미지정"}</span></td>
+                <td><strong>{caseRecord.parcels.length}필지</strong><small title={representativeParcel?.address}>{representativeParcel?.address || "필지 미등록"}</small></td>
+                <td>{caseRecord.assigneeName || "미배정"}</td>
+                <td><span className="case-table-next" title={caseRecord.nextAction}>{caseRecord.nextAction || "다음 할 일 미입력"}</span></td>
+                <td><CaseDeadlineValue caseRecord={caseRecord} /></td>
+                <td><CaseQuickActions caseRecord={caseRecord} viewer={viewer} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CaseBoardView({ cases, statuses, selectedCaseId, onCaseOpen, viewer }: CaseCollectionViewProps) {
+  return (
+    <div className="case-board" aria-label="상태별 업무 보드">
+      {statuses.map((status) => {
+        const statusCases = cases.filter((caseRecord) => caseRecord.status === status.id);
+        return (
+          <section className="case-board-column" style={{ "--case-status-color": status.color } as CSSProperties} key={status.id}>
+            <header><span /><strong>{status.label}</strong><em>{statusCases.length}</em></header>
+            <div className="case-board-column-body">
+              {statusCases.length ? statusCases.map((caseRecord) => {
+                const overdue = isOverdue(caseRecord.nextDeadlineAt) && caseRecord.status !== "completed";
+                return (
+                  <article className={`${caseRecord.id === selectedCaseId ? "selected" : ""} ${overdue ? "overdue" : ""}`} key={caseRecord.id}>
+                    <button type="button" className="case-board-card-main" onClick={() => onCaseOpen(caseRecord.id)} aria-pressed={caseRecord.id === selectedCaseId}>
+                      <span className="case-board-card-kicker">{caseRecord.primaryPermitName || "허가 미지정"}</span>
+                      <strong>{caseRecord.title}</strong>
+                      <small>{caseRecord.parcels[0]?.address || "필지 미등록"}{caseRecord.parcels.length > 1 ? ` 외 ${caseRecord.parcels.length - 1}필지` : ""}</small>
+                      <span className="case-board-next"><em>다음</em>{caseRecord.nextAction || "할 일 미입력"}</span>
+                      <span className="case-board-meta"><b>{caseRecord.assigneeName || "미배정"}</b><CaseDeadlineValue caseRecord={caseRecord} /></span>
+                    </button>
+                    <footer><CaseQuickActions caseRecord={caseRecord} viewer={viewer} /><button type="button" onClick={() => onCaseOpen(caseRecord.id)} aria-label={`${caseRecord.title} 상세 보기`}><ChevronRight size={17} /></button></footer>
+                  </article>
+                );
+              }) : <div className="case-board-empty"><span>등록된 업무 없음</span><small>상태가 변경되면 여기에 표시됩니다.</small></div>}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function CaseMapView({ cases, statuses, selectedCaseId, onCaseOpen }: Omit<CaseCollectionViewProps, "viewer">) {
+  return (
+    <div className="case-map-workspace">
+      <aside className="case-map-list" aria-label="지도 업무 목록">
+        <header><strong>지도 업무</strong><span>{cases.length}건</span></header>
+        <div>
+          {cases.map((caseRecord) => (
+            <CaseListItem key={caseRecord.id} caseRecord={caseRecord} statuses={statuses} selected={caseRecord.id === selectedCaseId} onClick={() => onCaseOpen(caseRecord.id)} />
+          ))}
+        </div>
+      </aside>
+      <div className="case-map-canvas">
+        <ParcelMap cases={cases} selectedCaseId={selectedCaseId} selectedCaseFitPadding={WORKSPACE_SELECTED_CASE_FIT_PADDING} onCaseSelect={onCaseOpen} />
+      </div>
+    </div>
   );
 }
 
