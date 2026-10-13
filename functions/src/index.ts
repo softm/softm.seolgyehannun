@@ -15,6 +15,7 @@ import { HttpsError, onCall, onRequest, type CallableRequest, type Request, type
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions";
+import { copyAllowedVWorldQuery } from "./vworldProxy.js";
 
 initializeApp();
 setGlobalOptions({ region: "asia-northeast3", maxInstances: 10 });
@@ -36,13 +37,6 @@ const ALLOWED_NED_OPERATIONS = new Set([
   "getIndvdLandPriceAttr",
   "getLandUseAttr",
 ]);
-const ALLOWED_QUERY_KEYS = new Set([
-  "service", "request", "version", "crs", "size", "page", "query", "type", "category",
-  "format", "errorformat", "data", "geometry", "attribute", "geomFilter", "point", "zipcode",
-  "simple", "pnu", "pageNo", "numOfRows", "layers", "styles", "bbox", "width", "height",
-  "transparent", "bgcolor", "exceptions", "srs",
-]);
-
 interface AuthenticatedRequest {
   uid: string;
   email?: string;
@@ -104,12 +98,6 @@ function applyCors(request: Request, response: Response): boolean {
     return false;
   }
   return true;
-}
-
-function copyAllowedQuery(source: URLSearchParams, target: URLSearchParams): void {
-  source.forEach((value, key) => {
-    if (ALLOWED_QUERY_KEYS.has(key.toLowerCase())) target.append(key, value);
-  });
 }
 
 export interface ReceiptLookupResult {
@@ -192,7 +180,7 @@ export const api = onRequest(
           return;
         }
         const target = new URL(`https://api.vworld.kr/req/${service}`);
-        copyAllowedQuery(incomingUrl.searchParams, target.searchParams);
+        copyAllowedVWorldQuery(incomingUrl.searchParams, target.searchParams);
         target.searchParams.set("key", vworldApiKey.value());
         target.searchParams.set("domain", vworldDomain.value());
         const upstream = await fetch(target, {
@@ -212,7 +200,7 @@ export const api = onRequest(
           return;
         }
         const target = new URL(`https://api.vworld.kr/ned/data/${operation}`);
-        copyAllowedQuery(incomingUrl.searchParams, target.searchParams);
+        copyAllowedVWorldQuery(incomingUrl.searchParams, target.searchParams);
         target.searchParams.set("key", vworldApiKey.value());
         target.searchParams.set("domain", vworldDomain.value());
         target.searchParams.set("format", "json");
