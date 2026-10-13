@@ -9,7 +9,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import PDFDocument from "pdfkit";
-import { defineSecret, defineString } from "firebase-functions/params";
+import { defineBoolean, defineSecret, defineString } from "firebase-functions/params";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { HttpsError, onCall, onRequest, type CallableRequest, type Request, type Response } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -24,6 +24,7 @@ const bucket = getStorage().bucket();
 const vworldApiKey = defineSecret("VWORLD_API_KEY");
 const vworldDomain = defineString("VWORLD_DOMAIN", { default: "localhost" });
 const allowedOrigins = defineString("ALLOWED_ORIGINS", { default: "http://localhost:5173,http://127.0.0.1:5173" });
+const enforceAppCheck = defineBoolean("ENFORCE_APP_CHECK", { default: false });
 
 const ALLOWED_VWORLD_SERVICES = new Set(["search", "address", "data", "wms"]);
 const ALLOWED_NED_OPERATIONS = new Set([
@@ -73,10 +74,18 @@ async function authenticateHttpRequest(request: Request): Promise<AuthenticatedR
   const decoded = await getAuth().verifyIdToken(authorization.slice(7));
   if (process.env.FUNCTIONS_EMULATOR !== "true") {
     const appCheckToken = request.header("X-Firebase-AppCheck");
-    if (!appCheckToken) throw new HttpsError("failed-precondition", "App Check 토큰이 필요합니다.");
-    await getAppCheck().verifyToken(appCheckToken);
+    if (enforceAppCheck.value() && !appCheckToken) {
+      throw new HttpsError("failed-precondition", "App Check 토큰이 필요합니다.");
+    }
+    if (appCheckToken) await getAppCheck().verifyToken(appCheckToken);
   }
   return { uid: decoded.uid, email: decoded.email };
+}
+
+function requireCallableAppCheck(request: CallableRequest): void {
+  if (process.env.FUNCTIONS_EMULATOR !== "true" && enforceAppCheck.value() && !request.app) {
+    throw new HttpsError("failed-precondition", "App Check 토큰이 필요합니다.");
+  }
 }
 
 function applyCors(request: Request, response: Response): boolean {
@@ -205,7 +214,8 @@ async function requireRole(request: CallableRequest, organizationId: string, rol
   }
 }
 
-export const bootstrapOrganization = onCall({ enforceAppCheck: true }, async (request) => {
+export const bootstrapOrganization = onCall({ enforceAppCheck: false }, async (request) => {
+  requireCallableAppCheck(request);
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   const name = String(request.data?.name ?? "").trim();
   if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "조직 이름을 확인해 주세요.");
@@ -222,7 +232,8 @@ export const bootstrapOrganization = onCall({ enforceAppCheck: true }, async (re
   return { organizationId: organizationRef.id };
 });
 
-export const createInvitation = onCall({ enforceAppCheck: true }, async (request) => {
+export const createInvitation = onCall({ enforceAppCheck: false }, async (request) => {
+  requireCallableAppCheck(request);
   const organizationId = String(request.data?.organizationId ?? "");
   const email = String(request.data?.email ?? "").trim().toLowerCase();
   const role = String(request.data?.role ?? "viewer");
@@ -245,7 +256,8 @@ export const createInvitation = onCall({ enforceAppCheck: true }, async (request
   return { invitationId, token, emailStatus: "not-configured" };
 });
 
-export const acceptInvitation = onCall({ enforceAppCheck: true }, async (request) => {
+export const acceptInvitation = onCall({ enforceAppCheck: false }, async (request) => {
+  requireCallableAppCheck(request);
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   const organizationId = String(request.data?.organizationId ?? "");
   const tokenHash = sha256(String(request.data?.token ?? ""));
@@ -344,7 +356,8 @@ async function createDocxBuffer(caseData: CaseDocumentData, parcels: FirebaseFir
   return Buffer.from(await Packer.toBuffer(document));
 }
 
-export const generateCaseDocuments = onCall({ enforceAppCheck: true, timeoutSeconds: 300, memory: "1GiB" }, async (request) => {
+export const generateCaseDocuments = onCall({ enforceAppCheck: false, timeoutSeconds: 300, memory: "1GiB" }, async (request) => {
+  requireCallableAppCheck(request);
   const organizationId = String(request.data?.organizationId ?? "");
   const caseId = String(request.data?.caseId ?? "");
   await requireRole(request, organizationId, ["admin", "editor"]);
