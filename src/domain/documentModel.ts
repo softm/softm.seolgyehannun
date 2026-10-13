@@ -75,6 +75,9 @@ function area(value: number | undefined): string {
 function documentSources(caseRecord: CaseRecord, template: DocumentTemplateDefinition): string[] {
   return Array.from(new Set([
     `${template.authority} · ${template.versionLabel}`,
+    template.officialSource
+      ? `${template.officialSource.regulationName} ${template.officialSource.formNumber} · 서식 개정 ${template.officialSource.revisionDate} · 시행 ${template.officialSource.effectiveDate}${template.officialSource.sourceHashSha256 ? ` · 원본 SHA-256 ${template.officialSource.sourceHashSha256}` : ""}`
+      : "",
     template.sourceUrl ?? "",
     ...caseRecord.parcels.flatMap((parcel) => [
       `${parcel.source} · 조회 ${formatSeoulDate(parcel.fetchedAt)}`,
@@ -114,7 +117,9 @@ function buildTemplateModel(caseRecord: CaseRecord, template: DocumentTemplateDe
     title: template.title,
     category: template.category,
     authority: template.authority,
-    statusLabel: template.status === "official-reference" ? "공식 별지 항목 대응 초안" : "사무소 예시 편집 서식",
+    statusLabel: template.generatedFormatFidelity?.pdf === "official-layout"
+      ? "국가서식 배치 자동작성본"
+      : template.status === "official-reference" ? "공식 별지 항목 대응 초안" : "사무소 예시 편집 서식",
     version,
     createdAt: new Date().toISOString(),
     author: caseRecord.assigneeName,
@@ -145,7 +150,9 @@ function buildTemplateModel(caseRecord: CaseRecord, template: DocumentTemplateDe
       version: `v${attachment.version}`,
     })),
     sources: documentSources(caseRecord, template),
-    notice: template.status === "official-reference"
+    notice: template.generatedFormatFidelity?.pdf === "official-layout"
+      ? "등록된 국가서식 원본 배치에 사건 데이터를 자동 입력한 초안입니다. 제출 전 필지별 면적, 첨부조건, 서명·날인과 관할기관의 최신 요구사항을 확인해야 합니다."
+      : template.status === "official-reference"
       ? "공식 별지의 입력 항목을 기준으로 만든 작성 초안입니다. 제출 전 관할기관의 최신 서식·법령·협의 조건과 원문 배치를 확인해야 합니다."
       : "첨부 업무자료를 바탕으로 만든 사무소 편집용 예시 서식입니다. 공식 허가 판단을 대체하지 않으며, 공식 제출 서식이 아니므로 제출 전 담당자의 검토가 필요합니다.",
   };

@@ -154,8 +154,22 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     permitCatalogIds: ["development"],
     status: "official-reference",
     authority: "국토교통부 · 국토의 계획 및 이용에 관한 법률 시행규칙 별지 제5호",
-    versionLabel: "개정 2020.10.19 · 법령정보센터 확인",
-    sourceUrl: "https://www.law.go.kr/flDownload.do?flSeq=112404233",
+    versionLabel: "개정 2023.1.27 · 시행 2026.9.18",
+    sourceUrl: "https://www.law.go.kr/법령별표서식/(국토의%20계획%20및%20이용에%20관한%20법률%20시행규칙,20260918,서식5)",
+    officialSource: {
+      regulationName: "국토의 계획 및 이용에 관한 법률 시행규칙",
+      formNumber: "별지 제5호서식",
+      revisionDate: "2023-01-27",
+      effectiveDate: "2026-09-18",
+      sourceUrl: "https://www.law.go.kr/법령별표서식/(국토의%20계획%20및%20이용에%20관한%20법률%20시행규칙,20260918,서식5)",
+      sourceHashSha256: "d09878f5fddefaf723e2dc992041ef8f81103006f5c29308330bbeee54b8939e",
+      availableFormats: ["hwp", "pdf"],
+      formatUrls: {
+        hwp: "https://www.law.go.kr/LSW/flDownload.do?flSeq=169298847",
+        pdf: "https://www.law.go.kr/LSW/flDownload.do?flSeq=169298849",
+      },
+    },
+    generatedFormatFidelity: { pdf: "official-field-map", docx: "official-field-map" },
     description: "공식 별지 서식의 입력 항목에 사건 공통정보를 연결한 작성 초안입니다.",
     fields: [
       text("applicantName", "성명·법인명", "신청인", "applicant.name", true),
@@ -190,8 +204,22 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     permitCatalogIds: ["farmland-conversion"],
     status: "official-reference",
     authority: "농림축산식품부 · 농지법 시행규칙 별지 제14호",
-    versionLabel: "개정 2016.1.21 · 현행 규칙 항목 확인",
-    sourceUrl: "https://www.law.go.kr/flDownload.do?flSeq=34469097&gubun=",
+    versionLabel: "개정 2019.6.28 · 시행 2026.9.22",
+    sourceUrl: "https://www.law.go.kr/법령별표서식/(농지법%20시행규칙,20260922,서식14)",
+    officialSource: {
+      regulationName: "농지법 시행규칙",
+      formNumber: "별지 제14호서식",
+      revisionDate: "2019-06-28",
+      effectiveDate: "2026-09-22",
+      sourceUrl: "https://www.law.go.kr/법령별표서식/(농지법%20시행규칙,20260922,서식14)",
+      sourceHashSha256: "61acb1fbafaa7ba78bcd832e7326a2fe9fc268310056b402ddd01a0a9a5b2ddc",
+      availableFormats: ["hwp", "pdf"],
+      formatUrls: {
+        hwp: "https://www.law.go.kr/LSW/flDownload.do?flSeq=170090637",
+        pdf: "https://www.law.go.kr/LSW/flDownload.do?flSeq=170090639",
+      },
+    },
+    generatedFormatFidelity: { pdf: "official-field-map", docx: "official-field-map" },
     description: "허가·변경허가, 농지 구분별 면적과 부담금 납부방법을 작성합니다.",
     fields: [
       text("applicantName", "성명·명칭", "신청인", "applicant.name", true),
@@ -219,28 +247,84 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     permitCatalogIds: ["forest-conversion"],
     status: "official-reference",
     authority: "산림청 · 산지관리법 시행규칙 별지 제3호",
-    versionLabel: "개정 2018.11.29 · 법령정보센터 항목 확인",
-    sourceUrl: "https://www.law.go.kr/flDownload.do?flSeq=74393251",
-    description: "신청인·산지소유자, 보전산지 구분, 부산물과 변경사항을 작성합니다.",
+    versionLabel: "개정 2026.6.24 · 시행 2026.9.18",
+    sourceUrl: "https://www.law.go.kr/LSW/lsBylInfoPLinkR.do?lsiSeq=289043&lsNm=%EC%82%B0%EC%A7%80%EA%B4%80%EB%A6%AC%EB%B2%95+%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99&bylNo=0003&bylBrNo=00&bylCls=BF&bylEfYd=20260918&bylEfYdYn=Y",
+    officialSource: {
+      regulationName: "산지관리법 시행규칙",
+      formNumber: "별지 제3호서식",
+      revisionDate: "2026-06-24",
+      effectiveDate: "2026-09-18",
+      sourceUrl: "https://www.law.go.kr/LSW/lsBylInfoPLinkR.do?lsiSeq=289043&lsNm=%EC%82%B0%EC%A7%80%EA%B4%80%EB%A6%AC%EB%B2%95+%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99&bylNo=0003&bylBrNo=00&bylCls=BF&bylEfYd=20260918&bylEfYdYn=Y",
+      sourceHashSha256: "a8df6963b6bc547853750683776167cda4a6ce501fe8d397d94b3f39b554794d",
+      availableFormats: ["hwp", "pdf"],
+      formatUrls: {
+        hwp: "https://www.law.go.kr/LSW/flDownload.do?flSeq=168602221",
+        pdf: "https://www.law.go.kr/LSW/flDownload.do?flSeq=168602223",
+      },
+    },
+    generatedFormatFidelity: { pdf: "official-layout", docx: "official-field-map" },
+    description: "국가법령정보센터 현행 2쪽 서식을 배경으로 사용하며, 신청인·산지소유자·필지·부산물·변경사항을 공식 입력란에 대응합니다.",
     fields: [
+      choice("applicationKind", "신청 구분", "신청 구분", [
+        { value: "new", label: "허가" },
+        { value: "change", label: "변경허가" },
+      ], "permit.forestApplicationKind", true),
       text("applicantName", "신청인 성명·명칭", "신청인", "applicant.name", true),
       text("registrationNumber", "주민·법인등록번호", "신청인", "applicant.registrationNumber", true),
       text("applicantAddress", "주소", "신청인", "applicant.address", true),
       text("applicantPhone", "전화번호", "신청인", "applicant.phone", true),
       text("forestRightRelation", "해당 산지에 대한 권리관계", "신청인", "permit.forestRightRelation", true),
       text("ownerName", "산지 소유자", "산지 소유자", "owner.name", true),
+      text("ownerBirthDate", "소유자 생년월일", "산지 소유자", "owner.birthDate"),
       text("ownerAddress", "소유자 주소", "산지 소유자", "owner.address"),
-      text("siteAddress", "전용대상 산지", "산지 내역", "parcel.addresses", true),
-      number("forestryAreaM2", "임업용 산지(㎡)", "산지 내역", "permit.forestryAreaM2"),
-      number("publicForestAreaM2", "공익용 산지(㎡)", "산지 내역", "permit.publicForestAreaM2"),
-      number("semiConservationAreaM2", "준보전산지(㎡)", "산지 내역", "permit.semiConservationAreaM2"),
-      long("forestProductPlan", "벌채·굴취·토석 생산 현황", "부산물", "permit.forestProductPlan"),
+      text("ownerPhone", "소유자 전화번호", "산지 소유자", "owner.phone"),
+      text("forestParcel1Address", "1행 소재지", "전용대상 산지 1", "parcel.0.address", true),
+      text("forestParcel1LotNumber", "1행 지번", "전용대상 산지 1", "parcel.0.lotNumber", true),
+      text("forestParcel1Category", "1행 지목", "전용대상 산지 1", "parcel.0.category", true),
+      number("forestParcel1AreaTotalM2", "1행 면적 계(㎡)", "전용대상 산지 1", "parcel.0.areaTotalM2", true),
+      number("forestParcel1ForestryAreaM2", "1행 임업용산지(㎡)", "전용대상 산지 1", "parcel.0.forestryAreaM2"),
+      number("forestParcel1PublicAreaM2", "1행 공익용산지(㎡)", "전용대상 산지 1", "parcel.0.publicForestAreaM2"),
+      number("forestParcel1SemiConservationAreaM2", "1행 준보전산지(㎡)", "전용대상 산지 1", "parcel.0.semiConservationAreaM2"),
+      text("forestParcel2Address", "2행 소재지", "전용대상 산지 2", "parcel.1.address"),
+      text("forestParcel2LotNumber", "2행 지번", "전용대상 산지 2", "parcel.1.lotNumber"),
+      text("forestParcel2Category", "2행 지목", "전용대상 산지 2", "parcel.1.category"),
+      number("forestParcel2AreaTotalM2", "2행 면적 계(㎡)", "전용대상 산지 2", "parcel.1.areaTotalM2"),
+      number("forestParcel2ForestryAreaM2", "2행 임업용산지(㎡)", "전용대상 산지 2", "parcel.1.forestryAreaM2"),
+      number("forestParcel2PublicAreaM2", "2행 공익용산지(㎡)", "전용대상 산지 2", "parcel.1.publicForestAreaM2"),
+      number("forestParcel2SemiConservationAreaM2", "2행 준보전산지(㎡)", "전용대상 산지 2", "parcel.1.semiConservationAreaM2"),
+      text("forestParcel3Address", "3행 소재지", "전용대상 산지 3", "parcel.2.address"),
+      text("forestParcel3LotNumber", "3행 지번", "전용대상 산지 3", "parcel.2.lotNumber"),
+      text("forestParcel3Category", "3행 지목", "전용대상 산지 3", "parcel.2.category"),
+      number("forestParcel3AreaTotalM2", "3행 면적 계(㎡)", "전용대상 산지 3", "parcel.2.areaTotalM2"),
+      number("forestParcel3ForestryAreaM2", "3행 임업용산지(㎡)", "전용대상 산지 3", "parcel.2.forestryAreaM2"),
+      number("forestParcel3PublicAreaM2", "3행 공익용산지(㎡)", "전용대상 산지 3", "parcel.2.publicForestAreaM2"),
+      number("forestParcel3SemiConservationAreaM2", "3행 준보전산지(㎡)", "전용대상 산지 3", "parcel.2.semiConservationAreaM2"),
+      text("fellSpecies", "벌채 나무 수종", "부산물 생산현황"),
+      number("fellCount", "벌채 나무 본수", "부산물 생산현황"),
+      number("fellVolumeM3", "벌채 나무부피(㎥)", "부산물 생산현황"),
+      text("excavatedSpecies", "굴취 나무 수종", "부산물 생산현황"),
+      number("excavatedCount", "굴취 나무 본수", "부산물 생산현황"),
+      number("excavatedVolumeM3", "굴취 나무부피(㎥)", "부산물 생산현황"),
+      number("stoneTotalM3", "토석 계(㎥)", "부산물 생산현황"),
+      number("stoneMaterialM3", "석재(㎥)", "부산물 생산현황"),
+      number("soilM3", "토사(㎥)", "부산물 생산현황"),
       long("purpose", "전용 목적", "사업 내용", "case.projectPurpose", true),
       date("startDate", "전용 시작일", "전용 기간", "case.projectStart", true),
       date("endDate", "전용 종료일", "전용 기간", "case.projectEnd", true),
+      choice("replacementForestChargePayment", "대체산림자원조성비 납부", "부담금", [
+        { value: "before-permit", label: "허가 전 납부" },
+        { value: "after-permit-conditional", label: "납부기한 내 납부 조건으로 허가 후 납부" },
+      ], undefined, true),
       long("previousDescription", "변경 전", "변경 신청", "permit.previousDescription"),
       long("changedDescription", "변경 후", "변경 신청", "permit.changedDescription"),
       long("changeReason", "변경 사유", "변경 신청", "permit.changeReason"),
+      date("applicationDate", "신청일", "신청", "permit.applicationDate", true),
+      text("signerName", "신청인 표시", "신청", "applicant.name", true),
+      choice("consentToLivestockRegistrationLookup", "행정정보 공동이용 동의", "행정정보 공동이용", [
+        { value: "no", label: "동의하지 않음" },
+        { value: "yes", label: "동의함" },
+      ]),
+      text("consentSignerName", "동의서 신청인", "행정정보 공동이용", "applicant.name"),
     ],
   },
   {
@@ -252,6 +336,7 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     status: "office-template",
     authority: "사무소 참고 화면 기반 편집 서식",
     versionLabel: "예시 서식 1.0",
+    generatedFormatFidelity: { pdf: "office-template", docx: "office-template" },
     description: "필지별 대장·실측·사업·도로점용·제외 면적과 소유자를 한 표로 작성합니다.",
     fields: [
       text("siteAddress", "대상지", "조서", "parcel.addresses", true),
@@ -267,6 +352,7 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     status: "office-template",
     authority: "사무소 작성 틀 · 첨부 참고 화면 기반",
     versionLabel: "예시 서식 1.0",
+    generatedFormatFidelity: { pdf: "office-template", docx: "office-template" },
     description: "사업 개요부터 배수·환경·폐기물·사후관리까지 사건별 설명을 편집합니다.",
     fields: [
       longWithDefault("overview", "1. 위치 및 현황", "사업 개요", "plan.siteCondition", businessPlanDefaultContent.overview, true),
@@ -308,6 +394,7 @@ export const documentTemplates: DocumentTemplateDefinition[] = [
     status: "office-template",
     authority: "사무소 참고 화면 기반 편집 서식",
     versionLabel: "예시 서식 1.0",
+    generatedFormatFidelity: { pdf: "office-template", docx: "office-template" },
     description: "토사 유출, 비산먼지, 교통, 우·오수와 현장 안전대책을 사건별로 보완합니다.",
     fields: [
       text("siteAddress", "사업장 위치", "표지", "parcel.addresses", true),
@@ -333,6 +420,13 @@ export const requiredDocumentCatalog: RequiredDocumentItem[] = [
   { id: "cross-section", name: "횡단면도", reason: "절·성토 및 사면 계획 확인", permitCatalogIds: ["development", "forest-conversion"], acceptedRoles: ["횡단면도", "종단면도"], sourceLabel: "설계 도면" },
   { id: "cost-breakdown", name: "공사비·예산 내역서", reason: "위해·환경 방지시설 예산 확인", permitCatalogIds: ["development"], acceptedRoles: ["공사내역서", "예산내역서"], sourceLabel: "적산 결과" },
   { id: "forest-survey", name: "산림조사서·입목축적조사서", reason: "산지 현황과 입목 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["산림조사서", "입목축적조사서"], sourceLabel: "산림 기술자료" },
+  { id: "forest-feasibility", name: "산지전용타당성조사 결과서", reason: "법령상 대상·유효기간 해당 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["산지전용타당성조사서", "타당성조사 결과서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-restoration", name: "복구계획서·복구설계서", reason: "복구 대상·면적·예외 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["복구계획서", "복구설계서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-slope", name: "표고조사서·평균경사도조사서", reason: "면적·지형·예외 요건을 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["표고조사서", "평균경사도조사서", "경사도조사서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-disaster-risk", name: "재해위험성 검토의견서", reason: "사업 규모와 재해 관련 적용 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["재해위험성 검토의견서", "재해위험성 검토서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-disaster-impact", name: "재해영향평가 협의서류", reason: "재해영향평가 협의 대상 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["재해영향평가 협의서", "재해영향평가서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-pest-control", name: "소나무재선충병 방제계획서", reason: "반출금지구역·수목 처리 해당 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["재선충병 방제계획서", "방제계획서"], sourceLabel: "조건부 후보 · 담당자 확인" },
+  { id: "forest-landscape", name: "경관훼손 저감대책", reason: "30만㎡ 이상 등 법령상 대상 여부를 담당자가 확인", permitCatalogIds: ["forest-conversion"], acceptedRoles: ["경관훼손 저감대책", "경관대책"], sourceLabel: "조건부 후보 · 담당자 확인" },
 ];
 
 function firstParty(caseRecord: CaseRecord, role: PartyRecord["role"]): PartyRecord | undefined {
@@ -361,6 +455,7 @@ export function resolveDocumentSource(caseRecord: CaseRecord, sourceKey?: string
   if (!sourceKey) return "";
   const applicant = firstParty(caseRecord, "applicant");
   const owner = firstParty(caseRecord, "owner");
+  const forestPermit = caseRecord.permits.find((permit) => permit.catalogId === "forest-conversion");
   const totals = parcelAreaTotals(caseRecord);
   const sources: Record<string, string> = {
     "applicant.name": applicant?.name || caseRecord.applicantName || "",
@@ -369,7 +464,9 @@ export function resolveDocumentSource(caseRecord: CaseRecord, sourceKey?: string
     "applicant.address": applicant?.address ?? "",
     "applicant.phone": applicant?.phone || caseRecord.applicantContact || "",
     "owner.name": owner?.name ?? "",
+    "owner.birthDate": owner?.registrationNumber ?? "",
     "owner.address": owner?.address ?? "",
+    "owner.phone": owner?.phone ?? "",
     "case.projectPurpose": caseRecord.projectPurpose,
     "case.projectStart": caseRecord.projectPeriod.start,
     "case.projectEnd": caseRecord.projectPeriod.end,
@@ -391,6 +488,8 @@ export function resolveDocumentSource(caseRecord: CaseRecord, sourceKey?: string
     "parcel.zoning": joinParcels(caseRecord.parcels, (parcel) => parcel.zoning.join(", ")),
     "parcel.totalApplicationArea": formatNumber(totals.planned || totals.surveyed || totals.ledger),
     "permit.actionTypes": caseRecord.permitForm.actionTypes.join(", "),
+    "permit.forestApplicationKind": forestPermit?.applicationKind ?? "new",
+    "permit.applicationDate": caseRecord.permitForm.applicationDate,
     "permit.entrepreneurStatus": caseRecord.permitForm.entrepreneurStatus === "yes" ? "해당" : caseRecord.permitForm.entrepreneurStatus === "no" ? "미해당" : "확인 필요",
     "permit.slopeDegree": formatNumber(caseRecord.permitForm.slopeDegree),
     "permit.soilType": caseRecord.permitForm.soilType,
@@ -424,6 +523,22 @@ export function resolveDocumentSource(caseRecord: CaseRecord, sourceKey?: string
     "plan.wastePlan": caseRecord.projectPlanDetails.wastePlan,
     "plan.postManagementPlan": caseRecord.projectPlanDetails.postManagementPlan || caseRecord.planBody.managementPlan,
   };
+
+  const parcelSource = /^parcel\.(\d+)\.(address|lotNumber|category|areaTotalM2|forestryAreaM2|publicForestAreaM2|semiConservationAreaM2)$/.exec(sourceKey);
+  if (parcelSource) {
+    const parcelIndex = Number(parcelSource[1]);
+    const field = parcelSource[2];
+    const parcel = caseRecord.parcels[parcelIndex];
+    if (!parcel) return "";
+    if (field === "address") return parcel.address;
+    if (field === "lotNumber") return parcel.lotNumber ?? "";
+    if (field === "category") return parcel.category ?? "";
+    if (field === "areaTotalM2") return formatNumber(parcel.plannedAreaM2 ?? parcel.surveyedAreaM2 ?? parcel.ledgerAreaM2);
+    if (caseRecord.parcels.length !== 1 || parcelIndex !== 0) return "";
+    if (field === "forestryAreaM2") return formatNumber(caseRecord.permitForm.forestryAreaM2);
+    if (field === "publicForestAreaM2") return formatNumber(caseRecord.permitForm.publicForestAreaM2);
+    return formatNumber(caseRecord.permitForm.semiConservationAreaM2);
+  }
   return sources[sourceKey] ?? "";
 }
 
@@ -478,6 +593,36 @@ export function templateValidation(caseRecord: CaseRecord, template: DocumentTem
   const missing = template.fields
     .filter((field) => field.required && !documentFieldValue(caseRecord, template.id, field).trim())
     .map((field) => `${template.shortTitle}: ${field.label}`);
+  if (template.id !== "forest-application") return missing;
+
+  const fieldValue = (fieldId: string) => {
+    const field = template.fields.find((item) => item.id === fieldId);
+    return field ? documentFieldValue(caseRecord, template.id, field).trim() : "";
+  };
+  const numeric = (fieldId: string) => {
+    const value = Number(fieldValue(fieldId).replaceAll(",", ""));
+    return Number.isFinite(value) ? value : 0;
+  };
+  if (fieldValue("applicationKind") === "change") {
+    [["previousDescription", "변경 전"], ["changedDescription", "변경 후"], ["changeReason", "변경 사유"]].forEach(([id, label]) => {
+      if (!fieldValue(id)) missing.push(`${template.shortTitle}: ${label}`);
+    });
+  }
+  for (let row = 1; row <= Math.min(3, caseRecord.parcels.length); row += 1) {
+    const total = numeric(`forestParcel${row}AreaTotalM2`);
+    const classification = numeric(`forestParcel${row}ForestryAreaM2`)
+      + numeric(`forestParcel${row}PublicAreaM2`)
+      + numeric(`forestParcel${row}SemiConservationAreaM2`);
+    if (!classification) missing.push(`${template.shortTitle}: ${row}행 산지 구분 면적`);
+    else if (total && Math.abs(total - classification) > 0.01) missing.push(`${template.shortTitle}: ${row}행 면적 계와 산지 구분 합계가 다릅니다.`);
+  }
+  if (caseRecord.parcels.length > 3) missing.push(`${template.shortTitle}: 4필지 이상 계속조서를 확인해 주세요.`);
+  const stoneTotal = numeric("stoneTotalM3");
+  const stoneParts = numeric("stoneMaterialM3") + numeric("soilM3");
+  if (stoneTotal && Math.abs(stoneTotal - stoneParts) > 0.01) missing.push(`${template.shortTitle}: 토석 계와 석재·토사 합계가 다릅니다.`);
+  const startDate = fieldValue("startDate");
+  const endDate = fieldValue("endDate");
+  if (startDate && endDate && startDate > endDate) missing.push(`${template.shortTitle}: 전용 시작일이 종료일보다 늦습니다.`);
   return missing;
 }
 
