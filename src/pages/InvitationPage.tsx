@@ -7,7 +7,7 @@ import { firebaseConfigured } from "../services/firebase";
 import { acceptOrganizationInvitation } from "../services/organizationRepository";
 
 export function InvitationPage() {
-  const { user, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [pending, setPending] = useState(false);
@@ -24,6 +24,7 @@ export function InvitationPage() {
     setError("");
     try {
       await acceptOrganizationInvitation(organizationId, token);
+      await refreshUser();
       setAccepted(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "초대를 수락하지 못했습니다.");
