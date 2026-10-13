@@ -665,15 +665,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .address-search > svg { color: #84919c; }
 .address-search input { min-width: 0; flex: 1; height: 43px; border: 0; outline: 0; font-size: 10px; }
 .address-search button { min-width: 58px; height: 37px; border: 0; border-radius: 8px; background: var(--teal-900); color: white; display: grid; place-items: center; font-size: 9px; font-weight: 750; cursor: pointer; }
-.search-results { width: calc(100% - 42px); max-height: 250px; padding: 5px; border: 1px solid #dfe5e8; border-radius: 11px; position: absolute; margin-top: 5px; background: white; box-shadow: var(--shadow-md); overflow: auto; z-index: 10; }
+.search-results { width: calc(100% - 42px); border: 1px solid #dfe5e8; border-radius: 11px; position: absolute; margin-top: 5px; background: white; box-shadow: var(--shadow-md); overflow: hidden; z-index: 10; }
 .parcel-search-card { position: relative; }
-.search-results button { width: 100%; min-height: 54px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; display: flex; align-items: center; gap: 9px; text-align: left; cursor: pointer; }
-.search-results button:hover { background: #f1f7f6; }
-.search-results button > span { min-width: 34px; padding: 4px 5px; border-radius: 6px; background: var(--mint-100); color: var(--teal-700); text-align: center; font-size: 7px; font-weight: 800; }
-.search-results button > div { min-width: 0; display: grid; gap: 3px; }
-.search-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
-.search-results small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #83909a; font-size: 7px; }
-.search-results button > svg { margin-left: auto; color: var(--teal-700); }
+.search-results-header { min-height: 44px; padding: 5px 7px 5px 12px; border-bottom: 1px solid #e5eaec; background: #f7faf9; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.search-results-header > strong { color: #3b514f; font-size: 9px; }
+.search-results-header > button { min-width: 68px; min-height: 34px; padding: 0 9px; border: 1px solid #cbd8d6; border-radius: 8px; background: white; color: var(--teal-700); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 9px; font-weight: 800; cursor: pointer; }
+.search-results-header > button:hover { background: var(--mint-100); }
+.search-results-list { max-height: 205px; padding: 5px; overflow-y: auto; overscroll-behavior: contain; }
+.search-results-list > button { width: 100%; min-height: 54px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; display: flex; align-items: center; gap: 9px; text-align: left; cursor: pointer; }
+.search-results-list > button:hover { background: #f1f7f6; }
+.search-results-list > button > span { min-width: 34px; padding: 4px 5px; border-radius: 6px; background: var(--mint-100); color: var(--teal-700); text-align: center; font-size: 7px; font-weight: 800; }
+.search-results-list > button > div { min-width: 0; display: grid; gap: 3px; }
+.search-results-list strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.search-results-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #83909a; font-size: 7px; }
+.search-results-list > button > svg { margin-left: auto; color: var(--teal-700); }
 .lookup-message { min-height: 38px; margin-top: 9px; padding: 8px 10px; border-radius: 8px; background: #fff7e7; color: #93620e; display: flex; align-items: center; gap: 7px; font-size: 8px; }
 .wizard-map { height: 390px; margin-top: 12px; border: 1px solid #dce4e1; border-radius: 13px; overflow: hidden; position: relative; }
 .wizard-map .parcel-map-shell, .wizard-map .parcel-map { min-height: 390px; }
