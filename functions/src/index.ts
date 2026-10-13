@@ -325,6 +325,89 @@ interface CaseDocumentData {
   permits?: Array<{ name?: string; relation?: string; applicationKind?: string }>;
 }
 
+interface DocumentSnapshot {
+  templateId: string;
+  title: string;
+  statusLabel: string;
+  templateVersion: string;
+  author: string;
+  sections: Array<{ title: string; fields: Array<{ label: string; value: string; required: boolean }> }>;
+  parcels: Array<{ address: string; role: string; ledgerArea: string; surveyedArea: string; plannedArea: string; roadArea: string; excludedArea: string; owner: string }>;
+  permits: Array<{ name: string; relation: string; application: string; existingPermit: string; review: string }>;
+  attachments: Array<{ name: string; role: string; version: string }>;
+  sources: string[];
+  notice: string;
+}
+
+function safeText(value: unknown, maxLength = 8_000): string {
+  return String(value ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, maxLength);
+}
+
+function sanitizeDocumentSnapshots(value: unknown): DocumentSnapshot[] {
+  if (!Array.isArray(value)) return [];
+  if (value.length > 10) throw new HttpsError("invalid-argument", "한 번에 생성할 수 있는 문서는 최대 10종입니다.");
+  return value.map((document) => {
+    const item = document && typeof document === "object" ? document as Record<string, unknown> : {};
+    const sections = Array.isArray(item.sections) ? item.sections.slice(0, 30).map((section) => {
+      const sectionItem = section && typeof section === "object" ? section as Record<string, unknown> : {};
+      const fields = Array.isArray(sectionItem.fields) ? sectionItem.fields.slice(0, 100).map((field) => {
+        const fieldItem = field && typeof field === "object" ? field as Record<string, unknown> : {};
+        return { label: safeText(fieldItem.label, 200), value: safeText(fieldItem.value), required: Boolean(fieldItem.required) };
+      }) : [];
+      return { title: safeText(sectionItem.title, 200), fields };
+    }) : [];
+    const parcels = Array.isArray(item.parcels) ? item.parcels.slice(0, 200).map((parcel) => {
+      const row = parcel && typeof parcel === "object" ? parcel as Record<string, unknown> : {};
+      return {
+        address: safeText(row.address, 500), role: safeText(row.role, 100), ledgerArea: safeText(row.ledgerArea, 100),
+        surveyedArea: safeText(row.surveyedArea, 100), plannedArea: safeText(row.plannedArea, 100), roadArea: safeText(row.roadArea, 100),
+        excludedArea: safeText(row.excludedArea, 100), owner: safeText(row.owner, 500),
+      };
+    }) : [];
+    const permits = Array.isArray(item.permits) ? item.permits.slice(0, 50).map((permit) => {
+      const row = permit && typeof permit === "object" ? permit as Record<string, unknown> : {};
+      return { name: safeText(row.name, 200), relation: safeText(row.relation, 100), application: safeText(row.application, 100), existingPermit: safeText(row.existingPermit, 300), review: safeText(row.review, 100) };
+    }) : [];
+    const attachments = Array.isArray(item.attachments) ? item.attachments.slice(0, 500).map((attachment) => {
+      const row = attachment && typeof attachment === "object" ? attachment as Record<string, unknown> : {};
+      return { name: safeText(row.name, 500), role: safeText(row.role, 200), version: safeText(row.version, 50) };
+    }) : [];
+    return {
+      templateId: safeText(item.templateId, 120),
+      title: safeText(item.title, 300) || "제목 없는 문서",
+      statusLabel: safeText(item.statusLabel, 200),
+      templateVersion: safeText(item.templateVersion, 300),
+      author: safeText(item.author, 200),
+      sections,
+      parcels,
+      permits,
+      attachments,
+      sources: Array.isArray(item.sources) ? item.sources.slice(0, 100).map((source) => safeText(source, 1_000)) : [],
+      notice: safeText(item.notice, 2_000),
+    };
+  });
+}
+
+function fallbackDocument(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[]): DocumentSnapshot {
+  return {
+    templateId: "legacy-business-plan",
+    title: `${caseData.title ?? "제목 없는 업무"} 사업계획서`,
+    statusLabel: "기존 사업계획서 편집본",
+    templateVersion: "기존 기본서식 1.0",
+    author: caseData.assigneeName ?? "-",
+    sections: [
+      { title: "사업 개요", fields: [{ label: "사업 목적", value: caseData.projectPurpose ?? "작성 필요", required: true }, { label: "개요", value: caseData.planBody?.overview ?? "작성 필요", required: true }] },
+      { title: "공사 계획", fields: [{ label: "공사 개요", value: caseData.constructionSummary ?? "작성 필요", required: false }, { label: "일정", value: caseData.scheduleSummary ?? "작성 필요", required: false }] },
+      { title: "안전 및 환경", fields: [{ label: "안전", value: caseData.safetyPlan ?? "작성 필요", required: false }, { label: "환경", value: caseData.environmentPlan ?? "작성 필요", required: false }] },
+    ],
+    parcels: parcels.map((parcel) => ({ address: safeText(parcel.address), role: safeText(parcel.role), ledgerArea: `${parcel.ledgerAreaM2 ?? "-"}㎡`, surveyedArea: `${parcel.surveyedAreaM2 ?? "-"}㎡`, plannedArea: `${parcel.plannedAreaM2 ?? "-"}㎡`, roadArea: `${parcel.roadOccupancyAreaM2 ?? "-"}㎡`, excludedArea: `${parcel.excludedAreaM2 ?? "-"}㎡`, owner: Array.isArray(parcel.ownerNames) ? parcel.ownerNames.join(", ") : "-" })),
+    permits: (caseData.permits ?? []).map((permit) => ({ name: permit.name ?? "-", relation: permit.relation ?? "-", application: permit.applicationKind === "change" ? "변경" : "신규", existingPermit: "-", review: "확인 필요" })),
+    attachments: attachments.map((attachment) => ({ name: safeText(attachment.name), role: safeText(attachment.role), version: `v${attachment.version ?? 1}` })),
+    sources: [],
+    notice: "본 문서는 업무 보조용입니다. 제출 전 관할기관과 최신 근거를 확인해야 합니다.",
+  };
+}
+
 function findKoreanFont(): string {
   const require = createRequire(import.meta.url);
   const packageDirectory = dirname(require.resolve("@fontsource/noto-sans-kr/package.json"));
@@ -334,30 +417,34 @@ function findKoreanFont(): string {
   return join(filesDirectory, font);
 }
 
-async function createPdfBuffer(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[], version: number): Promise<Buffer> {
+async function createPdfBuffer(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[], version: number, requestedDocuments: DocumentSnapshot[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const pdf = new PDFDocument({ size: "A4", margin: 52, info: { Title: `${caseData.title ?? "업무"} 사업계획서`, Author: caseData.assigneeName ?? "설계한눈" } });
+    const pdf = new PDFDocument({ size: "A4", margin: 52, info: { Title: `${caseData.title ?? "업무"} 제출서류 묶음`, Author: caseData.assigneeName ?? "설계한눈" } });
     pdf.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     pdf.on("end", () => resolve(Buffer.concat(chunks)));
     pdf.on("error", reject);
     try {
       pdf.registerFont("NotoKR", findKoreanFont());
       pdf.font("NotoKR");
-      pdf.fontSize(22).fillColor("#0c1c2e").text(`${caseData.title ?? "제목 없는 업무"} 사업계획서`, { align: "center" });
-      pdf.moveDown(0.5).fontSize(9).fillColor("#667085").text(`버전 ${version} · 작성자 ${caseData.assigneeName ?? "-"} · 생성 ${formatKstDate(new Date())}`, { align: "center" });
+      const documents = requestedDocuments.length ? requestedDocuments : [fallbackDocument(caseData, parcels, attachments)];
       const section = (title: string, lines: string[]) => {
         pdf.moveDown(1.5).fontSize(14).fillColor("#000000").text(title);
         pdf.moveDown(0.45).fontSize(10).fillColor("#344054");
         lines.forEach((line) => pdf.text(line || "작성 필요", { lineGap: 4 }));
       };
-      section("대상 필지", parcels.map((parcel) => `${parcel.address ?? "주소 확인 필요"} · PNU ${parcel.pnu ?? "-"} · ${parcel.ledgerAreaM2 ?? "-"}㎡`));
-      section("허가 및 관련 절차", (caseData.permits ?? []).map((permit) => `${permit.name ?? "-"} · ${permit.relation ?? "-"} · ${permit.applicationKind === "change" ? "변경" : "신규"}`));
-      section("사업 개요", [caseData.projectPurpose ?? "", caseData.planBody?.overview ?? ""]);
-      section("공사 계획", [caseData.constructionSummary ?? "", caseData.scheduleSummary ?? "", caseData.planBody?.projectPlan ?? ""]);
-      section("안전 및 환경 대책", [`안전: ${caseData.safetyPlan ?? "작성 필요"}`, `환경: ${caseData.environmentPlan ?? "작성 필요"}`, caseData.planBody?.managementPlan ?? ""]);
-      section("첨부 목록", attachments.length ? attachments.map((attachment) => `${attachment.name ?? "-"} · ${attachment.role ?? "기타"} · v${attachment.version ?? 1}`) : ["등록된 첨부가 없습니다."]);
-      pdf.moveDown(1.5).fontSize(8).fillColor("#475467").text("본 문서는 업무 보조용입니다. 공식 허가 판단을 대체하지 않으며, 제출 전 관할기관과 최신 근거를 확인해야 합니다.");
+      documents.forEach((document, index) => {
+        if (index > 0) pdf.addPage();
+        pdf.fontSize(22).fillColor("#0c1c2e").text(document.title, { align: "center" });
+        pdf.moveDown(0.3).fontSize(9).fillColor("#08766d").text(document.statusLabel, { align: "center" });
+        pdf.moveDown(0.3).fontSize(8).fillColor("#667085").text(`${document.templateVersion} · 제출본 v${version} · 작성자 ${document.author || caseData.assigneeName || "-"} · 생성 ${formatKstDate(new Date())}`, { align: "center" });
+        document.sections.forEach((item) => section(item.title, item.fields.map((field) => `${field.label}${field.required ? " *" : ""}: ${field.value || "작성 필요"}`)));
+        section("대상 필지 및 면적", document.parcels.map((parcel) => `${parcel.address} · ${parcel.role} · 대장 ${parcel.ledgerArea} · 실측 ${parcel.surveyedArea} · 계획 ${parcel.plannedArea} · 도로 ${parcel.roadArea} · 제외 ${parcel.excludedArea} · 소유자 ${parcel.owner}`));
+        section("허가 및 관련 절차", document.permits.map((permit) => `${permit.name} · ${permit.relation} · ${permit.application} · 기존 허가 ${permit.existingPermit} · ${permit.review}`));
+        section("첨부 목록", document.attachments.length ? document.attachments.map((attachment) => `${attachment.name} · ${attachment.role} · ${attachment.version}`) : ["등록된 첨부가 없습니다."]);
+        section("서식·데이터 출처", document.sources.length ? document.sources : ["출처 정보 없음"]);
+        pdf.moveDown(1.2).fontSize(8).fillColor("#475467").text(document.notice);
+      });
       pdf.end();
     } catch (error) {
       reject(error);
@@ -365,28 +452,29 @@ async function createPdfBuffer(caseData: CaseDocumentData, parcels: FirebaseFire
   });
 }
 
-async function createDocxBuffer(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[], version: number): Promise<Buffer> {
+async function createDocxBuffer(caseData: CaseDocumentData, parcels: FirebaseFirestore.DocumentData[], attachments: FirebaseFirestore.DocumentData[], version: number, requestedDocuments: DocumentSnapshot[]): Promise<Buffer> {
   const cell = (text: string) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text, font: "Noto Sans KR", size: 19 })] })] });
-  const document = new Document({ sections: [{ children: [
-    new Paragraph({ text: `${caseData.title ?? "제목 없는 업무"} 사업계획서`, heading: HeadingLevel.TITLE }),
-    new Paragraph({ text: `버전 ${version} · 작성자 ${caseData.assigneeName ?? "-"} · 생성 ${formatKstDate(new Date())}` }),
-    new Paragraph({ text: "대상 필지", heading: HeadingLevel.HEADING_1 }),
-    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [cell("주소"), cell("PNU"), cell("면적")] }), ...parcels.map((parcel) => new TableRow({ children: [cell(String(parcel.address ?? "-")), cell(String(parcel.pnu ?? "-")), cell(`${parcel.ledgerAreaM2 ?? "-"}㎡`)] }))] }),
-    new Paragraph({ text: "허가 및 관련 절차", heading: HeadingLevel.HEADING_1 }),
-    ...(caseData.permits ?? []).map((permit) => new Paragraph({ text: `${permit.name ?? "-"} · ${permit.relation ?? "-"} · ${permit.applicationKind === "change" ? "변경" : "신규"}` })),
-    new Paragraph({ text: "사업 개요", heading: HeadingLevel.HEADING_1 }),
-    new Paragraph({ text: caseData.projectPurpose ?? "작성 필요" }),
-    new Paragraph({ text: caseData.planBody?.overview ?? "작성 필요" }),
-    new Paragraph({ text: "공사 계획", heading: HeadingLevel.HEADING_1 }),
-    new Paragraph({ text: caseData.constructionSummary ?? "작성 필요" }),
-    new Paragraph({ text: caseData.scheduleSummary ?? "작성 필요" }),
-    new Paragraph({ text: "안전 및 환경 대책", heading: HeadingLevel.HEADING_1 }),
-    new Paragraph({ text: `안전: ${caseData.safetyPlan ?? "작성 필요"}` }),
-    new Paragraph({ text: `환경: ${caseData.environmentPlan ?? "작성 필요"}` }),
-    new Paragraph({ text: "첨부 목록", heading: HeadingLevel.HEADING_1 }),
-    ...(attachments.length ? attachments.map((attachment) => new Paragraph({ text: `${attachment.name ?? "-"} · ${attachment.role ?? "기타"} · v${attachment.version ?? 1}` })) : [new Paragraph({ text: "등록된 첨부가 없습니다." })]),
-    new Paragraph({ children: [new TextRun({ text: "본 문서는 업무 보조용입니다. 공식 허가 판단을 대체하지 않으며, 제출 전 관할기관과 최신 근거를 확인해야 합니다.", bold: true })] }),
-  ] }] });
+  const documents = requestedDocuments.length ? requestedDocuments : [fallbackDocument(caseData, parcels, attachments)];
+  const children: Array<Paragraph | Table> = [];
+  documents.forEach((item, index) => {
+    children.push(new Paragraph({ text: item.title, heading: HeadingLevel.TITLE, pageBreakBefore: index > 0 }));
+    children.push(new Paragraph({ children: [new TextRun({ text: item.statusLabel, bold: true, color: "08766D" })] }));
+    children.push(new Paragraph({ text: `${item.templateVersion} · 제출본 v${version} · 작성자 ${item.author || caseData.assigneeName || "-"} · 생성 ${formatKstDate(new Date())}` }));
+    item.sections.forEach((section) => {
+      children.push(new Paragraph({ text: section.title, heading: HeadingLevel.HEADING_1 }));
+      children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [cell("항목"), cell("작성 내용")] }), ...section.fields.map((field) => new TableRow({ children: [cell(`${field.label}${field.required ? " *" : ""}`), cell(field.value || "작성 필요")] }))] }));
+    });
+    children.push(new Paragraph({ text: "대상 필지 및 면적", heading: HeadingLevel.HEADING_1 }));
+    children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [cell("주소"), cell("역할"), cell("대장"), cell("실측"), cell("계획"), cell("도로"), cell("제외"), cell("소유자")] }), ...item.parcels.map((parcel) => new TableRow({ children: [cell(parcel.address), cell(parcel.role), cell(parcel.ledgerArea), cell(parcel.surveyedArea), cell(parcel.plannedArea), cell(parcel.roadArea), cell(parcel.excludedArea), cell(parcel.owner)] }))] }));
+    children.push(new Paragraph({ text: "허가 및 관련 절차", heading: HeadingLevel.HEADING_1 }));
+    children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [cell("절차"), cell("관계"), cell("신청"), cell("기존 허가"), cell("검토")] }), ...item.permits.map((permit) => new TableRow({ children: [cell(permit.name), cell(permit.relation), cell(permit.application), cell(permit.existingPermit), cell(permit.review)] }))] }));
+    children.push(new Paragraph({ text: "첨부 목록", heading: HeadingLevel.HEADING_1 }));
+    children.push(...(item.attachments.length ? item.attachments.map((attachment) => new Paragraph({ text: `${attachment.name} · ${attachment.role} · ${attachment.version}` })) : [new Paragraph({ text: "등록된 첨부가 없습니다." })]));
+    children.push(new Paragraph({ text: "서식·데이터 출처", heading: HeadingLevel.HEADING_1 }));
+    children.push(...item.sources.map((source) => new Paragraph({ text: source, bullet: { level: 0 } })));
+    children.push(new Paragraph({ children: [new TextRun({ text: item.notice, bold: true })] }));
+  });
+  const document = new Document({ sections: [{ children }] });
   return Buffer.from(await Packer.toBuffer(document));
 }
 
@@ -394,6 +482,8 @@ export const generateCaseDocuments = onCall({ enforceAppCheck: false, timeoutSec
   requireCallableAppCheck(request);
   const organizationId = String(request.data?.organizationId ?? "");
   const caseId = String(request.data?.caseId ?? "");
+  const requestedDocuments = sanitizeDocumentSnapshots(request.data?.documents);
+  if (!requestedDocuments.length) throw new HttpsError("invalid-argument", "출력에 포함할 문서를 선택해 주세요.");
   await requireRole(request, organizationId, ["admin", "editor"]);
   const caseRef = db.doc(`organizations/${organizationId}/cases/${caseId}`);
   const [caseSnapshot, parcelsSnapshot, attachmentsSnapshot] = await Promise.all([
@@ -409,19 +499,19 @@ export const generateCaseDocuments = onCall({ enforceAppCheck: false, timeoutSec
   });
   const documentId = `v${String(version).padStart(3, "0")}`;
   const documentRef = caseRef.collection("documents").doc(documentId);
-  await documentRef.set({ id: documentId, caseId, version, type: "bundle", status: "generating", templateVersion: "개발행위 기본서식 1.0", sourceSnapshotAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp(), createdBy: request.auth!.uid, notice: "업무 보조용 · 제출 전 관할기관 확인 필요" });
+  await documentRef.set({ id: documentId, caseId, version, type: "bundle", status: "generating", templateVersion: "인허가 문서 묶음 1.0", templateIds: requestedDocuments.map((item) => item.templateId), sourceSnapshotAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp(), createdBy: request.auth!.uid, notice: "공식 서식 항목 대응 초안과 사무소 예시 서식 · 제출 전 관할기관 확인 필요" });
 
   try {
     const caseData = caseSnapshot.data() as CaseDocumentData;
     const parcels = parcelsSnapshot.docs.map((item) => item.data());
     const attachments = attachmentsSnapshot.docs.map((item) => item.data());
     const [pdf, docx] = await Promise.all([
-      createPdfBuffer(caseData, parcels, attachments, version),
-      createDocxBuffer(caseData, parcels, attachments, version),
+      createPdfBuffer(caseData, parcels, attachments, version, requestedDocuments),
+      createDocxBuffer(caseData, parcels, attachments, version, requestedDocuments),
     ]);
     const basePath = `organizations/${organizationId}/cases/${caseId}/documents/${documentId}`;
-    const pdfPath = `${basePath}/사업계획서_${documentId}.pdf`;
-    const docxPath = `${basePath}/사업계획서_${documentId}.docx`;
+    const pdfPath = `${basePath}/제출서류묶음_${documentId}.pdf`;
+    const docxPath = `${basePath}/제출서류묶음_${documentId}.docx`;
     await Promise.all([
       bucket.file(pdfPath).save(pdf, { resumable: false, contentType: "application/pdf", metadata: { cacheControl: "private,no-store" } }),
       bucket.file(docxPath).save(docx, { resumable: false, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", metadata: { cacheControl: "private,no-store" } }),
