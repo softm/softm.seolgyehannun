@@ -14,6 +14,11 @@ export interface VWorldSearchResult {
   category: "road" | "parcel" | "place";
 }
 
+export interface VWorldReverseAddress {
+  address: string;
+  roadAddress: string;
+}
+
 const apiBase = import.meta.env.VITE_API_BASE || "/api";
 
 export async function vworldAuthorizedHeaders(): Promise<HeadersInit> {
@@ -123,6 +128,36 @@ export async function searchVWorld(queryText: string): Promise<VWorldSearchResul
   }).slice(0, 12);
 }
 
+export async function reverseGeocodeVWorld(longitude: number, latitude: number): Promise<VWorldReverseAddress> {
+  if (!getFirebaseServices()) {
+    const nearest = sampleParcels[0];
+    return { address: nearest.address, roadAddress: nearest.roadAddress ?? "" };
+  }
+  const payload = await getJson("/vworld/address", {
+    service: "address",
+    request: "getaddress",
+    version: "2.0",
+    crs: "EPSG:4326",
+    point: `${longitude},${latitude}`,
+    format: "json",
+    type: "both",
+    zipcode: true,
+    simple: false,
+  }) as any;
+  const response = payload?.response;
+  if (response?.status && !["OK", "NOT_FOUND"].includes(response.status)) {
+    throw new Error(response?.error?.text || response.status);
+  }
+  const addresses = Array.isArray(response?.result)
+    ? response.result
+    : [response?.result].filter(Boolean);
+  const parcelAddress = addresses.find((item: any) => String(item?.type).toLowerCase().includes("parcel"));
+  const roadAddress = addresses.find((item: any) => String(item?.type).toLowerCase().includes("road"));
+  const address = plainText(parcelAddress?.text) || plainText(roadAddress?.text);
+  if (!address) throw new Error("현재 위치의 주소를 확인하지 못했습니다.");
+  return { address, roadAddress: plainText(roadAddress?.text) };
+}
+
 export async function lookupParcel(longitude: number, latitude: number, hint?: VWorldSearchResult): Promise<ParcelSnapshot> {
   if (!getFirebaseServices()) {
     const nearest = sampleParcels.find((parcel) => parcel.pnu === hint?.pnu) ?? sampleParcels[0];
@@ -156,28 +191,15 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
   const pnu = String(normalizedProperties.pnu ?? hint?.pnu ?? "");
   if (!/^\d{19}$/.test(pnu)) throw new Error("이 위치에서 유효한 필지 PNU를 확인하지 못했습니다.");
 
-  const addressPayload = await getJson("/vworld/address", {
-    service: "address",
-    request: "getaddress",
-    version: "2.0",
-    crs: "EPSG:4326",
-    point: `${longitude},${latitude}`,
-    format: "json",
-    type: "both",
-    zipcode: true,
-    simple: false,
-  }) as any;
-  const addresses = Array.isArray(addressPayload?.response?.result)
-    ? addressPayload.response.result
-    : [addressPayload?.response?.result].filter(Boolean);
-  const parcelAddress = addresses.find((item: any) => String(item?.type).toLowerCase().includes("parcel"));
-  const roadAddress = addresses.find((item: any) => String(item?.type).toLowerCase().includes("road"));
+  const reverseAddress = hint?.address
+    ? { address: hint.address, roadAddress: hint.roadAddress }
+    : await reverseGeocodeVWorld(longitude, latitude);
 
   return {
     id: pnu,
     pnu,
-    address: hint?.address || plainText(parcelAddress?.text) || "선택 필지",
-    roadAddress: hint?.roadAddress || plainText(roadAddress?.text),
+    address: reverseAddress.address || "선택 필지",
+    roadAddress: reverseAddress.roadAddress,
     lotNumber: String(normalizedProperties.jibun ?? ""),
     category: String(normalizedProperties.jimok ?? normalizedProperties.jimok_nm ?? ""),
     ledgerAreaM2: Number(normalizedProperties.parea ?? normalizedProperties.area ?? 0) || undefined,
@@ -185,7 +207,7 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
     longitude,
     latitude,
     jurisdictionCode: pnu.slice(0, 5),
-    jurisdictionName: plainText(parcelAddress?.text).split(" ").slice(0, 2).join(" "),
+    jurisdictionName: reverseAddress.address.split(" ").slice(0, 2).join(" "),
     source: "VWorld 공간정보 오픈플랫폼",
     sourceUrl: "https://www.vworld.kr/",
     fetchedAt: new Date().toISOString(),
