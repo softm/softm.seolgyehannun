@@ -10,6 +10,7 @@ export interface ReferencePdfPage {
 
 const portraitSize = { width: 794, height: 1123 };
 const landscapeSize = { width: 1123, height: 794 };
+export const pdfFontFamily = "SeolgyeNanumGothic";
 
 function templateAssetUrl(fileName: string): string {
   const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -29,7 +30,8 @@ function createPage(orientation: PdfPageOrientation, className: string): HTMLEle
     overflow: "hidden",
     background: "#ffffff",
     color: "#111111",
-    fontFamily: '"NanumGothic", "Noto Sans KR", sans-serif',
+    fontFamily: `"${pdfFontFamily}", "NanumGothic", "Noto Sans KR", sans-serif`,
+    fontSynthesis: "none",
     boxSizing: "border-box",
     zIndex: "-1",
   });
@@ -72,6 +74,7 @@ function textElement(
     whiteSpace: "pre-wrap",
     overflow: options.height ? "hidden" : "visible",
     overflowWrap: "anywhere",
+    wordBreak: "keep-all",
     boxSizing: "border-box",
   });
   page.append(element);
@@ -106,7 +109,7 @@ function developmentValue(
   const element = textElement(page, content, {
     ...options,
     fontSize: fittedFontSize,
-    weight: options.weight ?? 680,
+    weight: options.weight ?? 500,
     lineHeight: options.lineHeight ?? 1.15,
   });
   element.dataset.pdfField = fieldId;
@@ -128,6 +131,19 @@ function developmentValue(
     });
   }
   return element;
+}
+
+function developmentSiteAddress(caseRecord: CaseRecord, fields: Map<string, string>): string {
+  const draft = caseRecord.documentDrafts.find((item) => item.templateId === "development-application");
+  if (draft && Object.prototype.hasOwnProperty.call(draft.overrides, "siteAddress")) {
+    return value(fields, "siteAddress");
+  }
+
+  const addresses = caseRecord.parcels
+    .map((parcel) => parcel.address.trim())
+    .filter((address, index, items) => address && items.indexOf(address) === index);
+  if (addresses.length <= 1) return addresses[0] ?? value(fields, "siteAddress");
+  return `${addresses[0]} 외 ${addresses.length - 1}필지`;
 }
 
 function addDevelopmentDate(
@@ -225,7 +241,7 @@ function buildDevelopmentApplicationPages(caseRecord: CaseRecord, model: CaseDoc
   developmentValue(front, "registrationNumber", value(fields, "registrationNumber"), { left: 61.2, top: 21.05, width: 28.7, height: 1.65, fontSize: 12.2, minFontSize: 10.2, align: "center" });
   developmentValue(front, "applicantAddress", value(fields, "applicantAddress"), { left: 16.2, top: 24.35, width: 35.2, height: 2.45, fontSize: 11.6, minFontSize: 9.5, maxLines: 2, lineHeight: 1.12 });
   developmentValue(front, "applicantPhone", value(fields, "applicantPhone"), { left: 71.5, top: 25.25, width: 17.5, height: 1.45, fontSize: 12.1, minFontSize: 10.2, align: "center" });
-  developmentValue(front, "siteAddress", value(fields, "siteAddress"), { left: 18.2, top: 30.4, width: 45.7, height: 2.45, fontSize: 11.4, minFontSize: 9.2, maxLines: 2, lineHeight: 1.1 });
+  developmentValue(front, "siteAddress", developmentSiteAddress(caseRecord, fields), { left: 18.2, top: 30.4, width: 45.7, height: 2.45, fontSize: 11.4, minFontSize: 9.8, maxLines: 2, lineHeight: 1.1 });
   developmentValue(front, "landCategory", value(fields, "landCategory"), { left: 70.1, top: 30.55, width: 18.8, height: 2.1, fontSize: 12, minFontSize: 10, align: "center" });
   developmentValue(front, "zoning", value(fields, "zoning"), { left: 18.2, top: 33.0, width: 45.7, height: 2.25, fontSize: 11.8, minFontSize: 9.6, maxLines: 2, lineHeight: 1.1 });
   developmentValue(front, "district", value(fields, "district"), { left: 70.1, top: 33.1, width: 18.8, height: 2.1, fontSize: 12, minFontSize: 10, align: "center" });

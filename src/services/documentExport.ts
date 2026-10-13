@@ -1,9 +1,35 @@
 import type { CaseRecord } from "../types";
 import { buildCaseDocumentModels, type CaseDocumentModel } from "../domain/documentModel";
 import { formatSeoulDate } from "../domain/date";
-import { buildReferencePdfPages, type PdfPageOrientation } from "./documentPdfTemplates";
+import { buildReferencePdfPages, pdfFontFamily, type PdfPageOrientation } from "./documentPdfTemplates";
 
 const bodyFont = "NanumGothic";
+let pdfFontLoad: Promise<void> | undefined;
+
+async function ensurePdfFontLoaded(): Promise<void> {
+  if (typeof FontFace === "undefined") return;
+  if (document.fonts.check(`12px "${pdfFontFamily}"`)) return;
+
+  pdfFontLoad ??= (async () => {
+    const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+    const fontUrl = new URL("fonts/NanumGothic.ttf", baseUrl).toString();
+    const fontFace = new FontFace(pdfFontFamily, `url("${fontUrl}")`, {
+      style: "normal",
+      weight: "400",
+      display: "block",
+    });
+    const loadedFont = await fontFace.load();
+    document.fonts.add(loadedFont);
+    await document.fonts.ready;
+  })();
+
+  try {
+    await pdfFontLoad;
+  } catch (error) {
+    pdfFontLoad = undefined;
+    throw new Error("PDF 한글 글꼴을 불러오지 못했습니다.", { cause: error });
+  }
+}
 
 async function loadDocxFont(): Promise<Uint8Array> {
   const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -395,7 +421,7 @@ export async function exportCasePdf(caseRecord: CaseRecord, templateId?: string)
   const models = exportModels(caseRecord, templateId);
   if (!models.length) throw new Error("다운로드할 문서를 찾지 못했습니다.");
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
-  await document.fonts.ready;
+  await ensurePdfFontLoaded();
   let pdf: InstanceType<typeof jsPDF> | undefined;
 
   const addPage = (orientation: PdfPageOrientation) => {
