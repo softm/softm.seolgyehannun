@@ -15,6 +15,12 @@ import { makeDemoCases } from "../data/demo";
 import { normalizeCaseRecord } from "../domain/caseRecord";
 import type { CaseRecord } from "../types";
 import { getFirebaseServices } from "./firebase";
+import {
+  decodeCaseFromFirestore,
+  decodeParcelFromFirestore,
+  encodeCaseForFirestore,
+  encodeParcelForFirestore,
+} from "./firestoreCaseCodec";
 
 const localCasesKey = "seolgye-hannun.demo-cases.v2";
 
@@ -40,7 +46,7 @@ function writeLocalCases(cases: CaseRecord[]): void {
 }
 
 function fromFirestore(data: DocumentData, id: string): CaseRecord {
-  return normalizeCaseRecord({ id, ...data } as CaseRecord);
+  return decodeCaseFromFirestore(data, id);
 }
 
 export function subscribeCases(
@@ -95,7 +101,7 @@ export async function saveCase(caseRecord: CaseRecord, isDemo: boolean): Promise
     if (snapshot.exists() && Number(snapshot.data().version) !== caseRecord.version) {
       throw new Error("다른 사용자가 먼저 수정했습니다. 최신 내용을 확인한 뒤 다시 저장해 주세요.");
     }
-    transaction.set(caseRef, nextRecord);
+    transaction.set(caseRef, encodeCaseForFirestore(nextRecord));
   });
 
   const [storedParcels, storedAttachments] = await Promise.all([
@@ -108,7 +114,7 @@ export async function saveCase(caseRecord: CaseRecord, isDemo: boolean): Promise
   storedParcels.docs.filter((item) => !parcelIds.has(item.id)).forEach((item) => batch.delete(item.ref));
   storedAttachments.docs.filter((item) => !attachmentIds.has(item.id)).forEach((item) => batch.delete(item.ref));
   nextRecord.parcels.forEach((parcel) => {
-    batch.set(doc(caseRef, "parcels", parcel.id), parcel);
+    batch.set(doc(caseRef, "parcels", parcel.id), encodeParcelForFirestore(parcel));
   });
   nextRecord.attachments.forEach((attachment) => {
     batch.set(doc(caseRef, "attachments", attachment.id), attachment);
@@ -128,7 +134,7 @@ export async function loadCaseSubcollections(caseRecord: CaseRecord): Promise<Ca
   ]);
   return normalizeCaseRecord({
     ...caseRecord,
-    parcels: parcels.docs.map((item) => item.data() as CaseRecord["parcels"][number]),
+    parcels: parcels.docs.map((item) => decodeParcelFromFirestore(item.data())),
     attachments: attachments.docs.map((item) => item.data() as CaseRecord["attachments"][number]),
     documentVersions: documents.docs.map((item) => item.data() as CaseRecord["documentVersions"][number]),
   });
@@ -142,7 +148,7 @@ export async function writeCaseDraft(caseRecord: CaseRecord, isDemo: boolean): P
   }
   await setDoc(
     doc(services.db, "organizations", caseRecord.organizationId, "cases", caseRecord.id),
-    caseRecord,
+    encodeCaseForFirestore(caseRecord),
     { merge: true },
   );
 }
