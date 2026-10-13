@@ -34,7 +34,7 @@ interface ParcelMapProps {
   focusLocation?: MapFocusLocation | null;
   onMapClick?: (longitude: number, latitude: number) => void;
   onCaseSelect?: (caseId: string) => void;
-  onBoundariesResolved?: (boundaries: Record<string, ParcelBoundary>) => void;
+  onParcelsResolved?: (parcels: ParcelSnapshot[]) => void;
 }
 
 const EMPTY_CASES: CaseRecord[] = [];
@@ -73,7 +73,7 @@ export function ParcelMap({
   focusLocation = null,
   onMapClick,
   onCaseSelect,
-  onBoundariesResolved,
+  onParcelsResolved,
 }: ParcelMapProps) {
   const [mapMode, setMapMode] = useState<MapMode>(interactive ? "cadastral" : "normal");
   const [layerMessage, setLayerMessage] = useState("");
@@ -89,14 +89,14 @@ export function ParcelMap({
   const interactiveRef = useRef(interactive);
   const onMapClickRef = useRef(onMapClick);
   const onCaseSelectRef = useRef(onCaseSelect);
-  const onBoundariesResolvedRef = useRef(onBoundariesResolved);
+  const onParcelsResolvedRef = useRef(onParcelsResolved);
   const mapModeRef = useRef(mapMode);
   const requestedBoundaryPnusRef = useRef(new Set<string>());
   selectedCaseIdRef.current = selectedCaseId;
   interactiveRef.current = interactive;
   onMapClickRef.current = onMapClick;
   onCaseSelectRef.current = onCaseSelect;
-  onBoundariesResolvedRef.current = onBoundariesResolved;
+  onParcelsResolvedRef.current = onParcelsResolved;
   mapModeRef.current = mapMode;
 
   useEffect(() => {
@@ -235,7 +235,7 @@ export function ParcelMap({
     const selectedCase = cases.find((item) => item.id === selectedCaseId);
     const visibleParcels = selectedCase?.parcels ?? parcels;
     const unresolvedParcels = visibleParcels.filter((parcel) => (
-      !parcel.boundary
+      (!parcel.boundary || parcel.ledgerAreaM2 === undefined || !parcel.category)
       && /^\d{19}$/.test(parcel.pnu)
       && !resolvedBoundaries[parcel.pnu]
       && !requestedBoundaryPnusRef.current.has(parcel.pnu)
@@ -256,18 +256,22 @@ export function ParcelMap({
           latitude: parcel.latitude,
           category: "parcel",
         });
-        return resolved.boundary ? [parcel.pnu, resolved.boundary] as const : null;
+        return resolved;
       } catch {
         requestedBoundaryPnusRef.current.delete(parcel.pnu);
         return null;
       }
     })).then((entries) => {
       if (cancelled) return;
-      const boundaries = entries.filter((entry): entry is readonly [string, ParcelBoundary] => Boolean(entry));
-      if (!boundaries.length) return;
-      const nextBoundaries = Object.fromEntries(boundaries);
-      setResolvedBoundaries((current) => ({ ...current, ...nextBoundaries }));
-      onBoundariesResolvedRef.current?.(nextBoundaries);
+      const resolvedParcels = entries.filter((entry): entry is ParcelSnapshot => Boolean(entry));
+      if (!resolvedParcels.length) return;
+      const nextBoundaries = Object.fromEntries(resolvedParcels.flatMap((parcel) => (
+        parcel.boundary ? [[parcel.pnu, parcel.boundary] as const] : []
+      )));
+      if (Object.keys(nextBoundaries).length) {
+        setResolvedBoundaries((current) => ({ ...current, ...nextBoundaries }));
+      }
+      onParcelsResolvedRef.current?.(resolvedParcels);
     });
 
     return () => {
