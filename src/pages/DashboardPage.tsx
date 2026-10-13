@@ -54,6 +54,15 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
     });
   }, [user]);
 
+  useEffect(() => {
+    if (!listOnly || !detailOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [detailOpen, listOnly]);
+
   const allStatuses = useMemo(
     () => [...defaultStatuses, ...customStatuses].sort((a, b) => a.order - b.order),
     [customStatuses],
@@ -231,6 +240,26 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
         </div>
       </section>
 
+      {listOnly && selectedCase && detailOpen && (
+        <div className="case-list-detail-host">
+          <button type="button" className="case-list-detail-backdrop" onClick={() => setDetailOpen(false)} aria-label="업무 상세 닫기" />
+          <CaseDetailCard
+            caseRecord={selectedCase}
+            tab={detailTab}
+            setTab={setDetailTab}
+            open
+            modal
+            close={() => setDetailOpen(false)}
+            onStatusChange={changeStatus}
+            onExport={exportDocument}
+            exporting={exporting}
+            viewer={user?.role === "viewer"}
+            statuses={allStatuses}
+            onAttachmentOpen={openAttachment}
+          />
+        </div>
+      )}
+
       {notice && <div className="toast" role="status"><CheckCircle2 size={18} />{notice}<button type="button" onClick={() => setNotice("")} aria-label="알림 닫기"><X size={16} /></button></div>}
     </div>
   );
@@ -261,11 +290,12 @@ interface CaseDetailCardProps {
   viewer: boolean;
   statuses: CaseStatus[];
   onAttachmentOpen: (attachment: AttachmentRecord) => void;
+  modal?: boolean;
 }
 
-function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, onExport, exporting, viewer, statuses, onAttachmentOpen }: CaseDetailCardProps) {
+function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, onExport, exporting, viewer, statuses, onAttachmentOpen, modal = false }: CaseDetailCardProps) {
   return (
-    <aside className={`case-detail-card ${open ? "open" : ""}`} aria-label="선택 업무 상세">
+    <aside className={`case-detail-card ${open ? "open" : ""}`} role={modal ? "dialog" : undefined} aria-modal={modal || undefined} aria-label="선택 업무 상세">
       <div className="detail-drag-handle" />
       <header>
         <div><StatusBadge status={caseRecord.status} statuses={statuses} /><span className="case-id">{caseRecord.id}</span></div>
