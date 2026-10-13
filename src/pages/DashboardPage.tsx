@@ -12,6 +12,7 @@ import {
   List,
   Map as MapIcon,
   Paperclip,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -117,7 +118,7 @@ export function DashboardPage({ listOnly = false }: { listOnly?: boolean }) {
         else await exportCaseDocx(selectedCase);
         setNotice(`${type.toUpperCase()} 체험 파일을 만들었습니다.`);
       } else {
-        const result = await generateAndOpenCaseDocument(selectedCase.organizationId, selectedCase.id, type);
+        const result = await generateAndOpenCaseDocument(selectedCase, type);
         setNotice(`서버 문서 v${result.version}을 생성해 ${type.toUpperCase()}를 열었습니다.`);
       }
     } catch (reason) {
@@ -303,6 +304,8 @@ function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, 
             {statuses.map((status) => <option value={status.id} key={status.id} disabled={!canTransitionStatus(caseRecord.status, status.id)}>{status.label}</option>)}
           </select><ChevronDown size={15} />
         </div>
+        {!viewer && <Link className="button button-secondary" to={`/app/cases/${caseRecord.id}/edit?step=5`}><Pencil size={17} /> 수정</Link>}
+        <Link className="button button-secondary" to={`/app/documents/${caseRecord.id}`}><FileText size={17} /> 문서 작업실</Link>
         <button type="button" className="button button-secondary" onClick={() => onExport("docx")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><FileText size={17} />{exporting === "docx" ? "생성 중" : "DOCX"}</button>
         <button type="button" className="button button-primary" onClick={() => onExport("pdf")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><Sparkles size={17} />{exporting === "pdf" ? "생성 중" : "PDF"}</button>
       </footer>
