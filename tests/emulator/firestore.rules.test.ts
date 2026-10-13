@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { getBytes, ref, uploadBytes } from "firebase/storage";
 
 const runEmulatorTests = Boolean(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_STORAGE_EMULATOR_HOST);
 
@@ -74,4 +74,16 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     await assertFails(uploadBytes(ref(storage, `${base}/run.exe`), new Uint8Array([1, 2, 3]), { contentType: "application/octet-stream" }));
     await assertFails(uploadBytes(ref(storage, `${base}/huge.pdf`), new Uint8Array(50 * 1024 * 1024 + 1), { contentType: "application/pdf" }));
   }, 30_000);
+
+  it("조직 구성원만 생성 문서를 읽을 수 있다", async () => {
+    const path = "organizations/org-a/cases/case-1/documents/v002/사업계획서_v002.pdf";
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await uploadBytes(ref(context.storage(), path), new Uint8Array([1, 2, 3]), { contentType: "application/pdf" });
+    });
+
+    const memberStorage = environment.authenticatedContext("viewer-a").storage();
+    const outsiderStorage = environment.authenticatedContext("admin-b").storage();
+    await assertSucceeds(getBytes(ref(memberStorage, path)));
+    await assertFails(getBytes(ref(outsiderStorage, path)));
+  });
 });
