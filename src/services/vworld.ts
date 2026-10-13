@@ -35,6 +35,31 @@ function plainText(value: unknown): string {
   return template.content.textContent?.trim() ?? "";
 }
 
+function recordsAt(value: unknown, path: string[]): Record<string, unknown>[] {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return [];
+    current = (current as Record<string, unknown>)[key];
+  }
+  const records = Array.isArray(current) ? current : current ? [current] : [];
+  return records.filter((record): record is Record<string, unknown> => Boolean(record) && typeof record === "object");
+}
+
+export function normalizeNedParcelDetails(
+  ledgerPayload: unknown,
+  landUsePayload: unknown,
+): Pick<ParcelSnapshot, "ledgerAreaM2" | "sourceLedgerAreaM2" | "category" | "zoning"> {
+  const ledger = recordsAt(ledgerPayload, ["fields", "ladfrlVOList"])[0]
+    ?? recordsAt(ledgerPayload, ["response", "fields", "field"])[0]
+    ?? {};
+  const ledgerAreaM2 = Number(ledger.lndpclAr ?? 0) || undefined;
+  const category = plainText(ledger.lndcgrCodeNm);
+  const zoning = recordsAt(landUsePayload, ["response", "fields", "field"])
+    .map((record) => plainText(record.prposAreaDstrcCodeNm))
+    .filter((name, index, names) => Boolean(name) && names.indexOf(name) === index);
+  return { ledgerAreaM2, sourceLedgerAreaM2: ledgerAreaM2, category, zoning };
+}
+
 function normalizeSearchItem(item: Record<string, any>, category: VWorldSearchResult["category"], index: number): VWorldSearchResult {
   const longitude = Number(item?.point?.x);
   const latitude = Number(item?.point?.y);
@@ -223,10 +248,20 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
   const pnu = String(normalizedProperties.pnu ?? hint?.pnu ?? "");
   if (!/^\d{19}$/.test(pnu)) throw new Error("이 위치에서 유효한 필지 PNU를 확인하지 못했습니다.");
 
+  const [ledgerResult, landUseResult] = await Promise.allSettled([
+    getJson("/vworld/ned/ladfrlList", { pnu, pageNo: 1, numOfRows: 10 }),
+    getJson("/vworld/ned/getLandUseAttr", { pnu, pageNo: 1, numOfRows: 1000 }),
+  ]);
+  const details = normalizeNedParcelDetails(
+    ledgerResult.status === "fulfilled" ? ledgerResult.value : undefined,
+    landUseResult.status === "fulfilled" ? landUseResult.value : undefined,
+  );
+
   const reverseAddress = hint?.address
     ? { address: hint.address, roadAddress: hint.roadAddress }
     : await reverseGeocodeVWorld(longitude, latitude);
-  const ledgerAreaM2 = Number(normalizedProperties.parea ?? normalizedProperties.area ?? 0) || undefined;
+  const ledgerAreaM2 = details.ledgerAreaM2
+    ?? (Number(normalizedProperties.parea ?? normalizedProperties.area ?? 0) || undefined);
 
   return {
     id: pnu,
@@ -234,13 +269,17 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
     address: reverseAddress.address || "선택 필지",
     roadAddress: reverseAddress.roadAddress,
     lotNumber: String(normalizedProperties.jibun ?? ""),
-    category: String(normalizedProperties.jimok ?? normalizedProperties.jimok_nm ?? ""),
+    category: details.category || String(normalizedProperties.jimok ?? normalizedProperties.jimok_nm ?? ""),
     ledgerAreaM2,
+    surveyedAreaM2: ledgerAreaM2,
+    plannedAreaM2: ledgerAreaM2,
+    roadOccupancyAreaM2: 0,
+    excludedAreaM2: 0,
     role: "project-site",
     ownerNames: [],
     sourceLedgerAreaM2: ledgerAreaM2,
     userModifiedFields: [],
-    zoning: [],
+    zoning: details.zoning,
     longitude,
     latitude,
     ...(boundary ? { boundary } : {}),
