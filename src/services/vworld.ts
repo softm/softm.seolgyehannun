@@ -1,5 +1,5 @@
 import { sampleParcels } from "../data/demo";
-import type { ParcelSnapshot } from "../types";
+import type { ParcelBoundary, ParcelSnapshot } from "../types";
 import { apiUrl, authorizedApiHeaders } from "./api";
 import { getFirebaseServices } from "./firebase";
 
@@ -51,6 +51,53 @@ function normalizeSearchItem(item: Record<string, any>, category: VWorldSearchRe
     latitude,
     category,
   };
+}
+
+function normalizePosition(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length < 2) return null;
+  const longitude = Number(value[0]);
+  const latitude = Number(value[1]);
+  return Number.isFinite(longitude) && Number.isFinite(latitude) ? [longitude, latitude] : null;
+}
+
+function normalizeRing(value: unknown): [number, number][] | null {
+  if (!Array.isArray(value)) return null;
+  const ring = value.map(normalizePosition);
+  return ring.length >= 4 && ring.every((position) => position !== null)
+    ? ring as [number, number][]
+    : null;
+}
+
+function normalizePolygon(value: unknown): [number, number][][] | null {
+  if (!Array.isArray(value)) return null;
+  const polygon = value.map(normalizeRing);
+  return polygon.length > 0 && polygon.every((ring) => ring !== null)
+    ? polygon as [number, number][][]
+    : null;
+}
+
+export function normalizeParcelBoundary(value: unknown): ParcelBoundary | undefined {
+  let geometry = value;
+  if (typeof geometry === "string") {
+    try {
+      geometry = JSON.parse(geometry);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!geometry || typeof geometry !== "object") return undefined;
+  const candidate = geometry as { type?: unknown; coordinates?: unknown };
+  if (candidate.type === "Polygon") {
+    const coordinates = normalizePolygon(candidate.coordinates);
+    return coordinates ? { type: "Polygon", coordinates } : undefined;
+  }
+  if (candidate.type === "MultiPolygon" && Array.isArray(candidate.coordinates)) {
+    const polygons = candidate.coordinates.map(normalizePolygon);
+    return polygons.length > 0 && polygons.every((polygon) => polygon !== null)
+      ? { type: "MultiPolygon", coordinates: polygons as [number, number][][][] }
+      : undefined;
+  }
+  return undefined;
 }
 
 export async function searchVWorld(queryText: string): Promise<VWorldSearchResult[]> {
@@ -169,6 +216,7 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
   );
   const feature = fulfilledFeature?.value as any;
   const properties = feature?.properties ?? {};
+  const boundary = normalizeParcelBoundary(feature?.geometry);
   const normalizedProperties = Object.fromEntries(
     Object.entries(properties).map(([key, value]) => [key.toLowerCase(), value]),
   );
@@ -190,6 +238,7 @@ export async function lookupParcel(longitude: number, latitude: number, hint?: V
     zoning: [],
     longitude,
     latitude,
+    ...(boundary ? { boundary } : {}),
     jurisdictionCode: pnu.slice(0, 5),
     jurisdictionName: reverseAddress.address.split(" ").slice(0, 2).join(" "),
     source: "VWorld 공간정보 오픈플랫폼",
