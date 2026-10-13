@@ -32,7 +32,9 @@ export default function AuthenticatedRoutes() {
             <Route index element={<DashboardPage />} />
             <Route path="cases" element={<DashboardPage listOnly />} />
             <Route path="cases/new" element={<NewCaseWizard />} />
+            <Route path="cases/:caseId/edit" element={<NewCaseWizard />} />
             <Route path="documents" element={<DocumentsPage />} />
+            <Route path="documents/:caseId" element={<DocumentsPage />} />
             <Route path="team" element={<TeamPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

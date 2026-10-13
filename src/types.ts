@@ -22,6 +22,10 @@ export interface CaseStatus {
 export type PermitApplicationKind = "new" | "change";
 export type PermitRelationKind = "primary" | "agenda" | "separate" | "reference";
 export type PermitReviewState = "unreviewed" | "review-needed" | "confirmed";
+export type PartyRole = "applicant" | "owner" | "agent";
+export type PartyType = "person" | "corporation";
+export type ParcelRole = "project-site" | "access-road" | "road-occupancy" | "excluded" | "reference";
+export type DocumentDraftStatus = "draft" | "review-needed" | "reviewed";
 
 export interface PermitSelection {
   id: string;
@@ -36,6 +40,21 @@ export interface PermitSelection {
   consultationStatus?: "not-requested" | "requested" | "supplement" | "replied" | "confirmed";
 }
 
+export interface PartyRecord {
+  id: string;
+  role: PartyRole;
+  partyType: PartyType;
+  name: string;
+  representativeName?: string;
+  registrationNumber?: string;
+  address?: string;
+  postalCode?: string;
+  phone?: string;
+  email?: string;
+  ownershipShare?: string;
+  relationNote?: string;
+}
+
 export interface ParcelSnapshot {
   id: string;
   pnu: string;
@@ -44,7 +63,14 @@ export interface ParcelSnapshot {
   lotNumber?: string;
   category?: string;
   ledgerAreaM2?: number;
+  surveyedAreaM2?: number;
   plannedAreaM2?: number;
+  roadOccupancyAreaM2?: number;
+  excludedAreaM2?: number;
+  role: ParcelRole;
+  ownerNames: string[];
+  sourceLedgerAreaM2?: number;
+  userModifiedFields: string[];
   zoning: string[];
   longitude: number;
   latitude: number;
@@ -55,6 +81,71 @@ export interface ParcelSnapshot {
   sourceUrl?: string;
   fetchedAt: string;
   verifiedByUser: boolean;
+}
+
+export interface BuildingPlan {
+  useCategory: string;
+  legalUseCategory: string;
+  buildingAreaM2?: number;
+  grossFloorAreaM2?: number;
+  floorsAbove?: number;
+  floorsBelow?: number;
+  buildingCoverageRatio?: number;
+  floorAreaRatio?: number;
+  structure: string;
+}
+
+export interface PermitFormData {
+  actionTypes: string[];
+  entrepreneurStatus: "yes" | "no" | "unknown";
+  applicationDate: string;
+  slopeDegree?: number;
+  soilType: string;
+  buriedRockVolumeM3?: number;
+  mainTreeSpecies: string;
+  standingForestAreaM2?: number;
+  unforestedAreaM2?: number;
+  forestRightRelation: string;
+  forestryAreaM2?: number;
+  publicForestAreaM2?: number;
+  semiConservationAreaM2?: number;
+  forestProductPlan: string;
+  farmlandZoneAreaM2?: number;
+  farmlandProtectionAreaM2?: number;
+  farmlandOutsideAreaM2?: number;
+  conservationChargePayment: "undecided" | "lump-sum" | "installment";
+  previousDescription: string;
+  changedDescription: string;
+  changeReason: string;
+}
+
+export interface ProjectPlanDetails {
+  fundingPlan: string;
+  roadPlan: string;
+  drainagePlan: string;
+  waterSupplyPlan: string;
+  earthworkPlan: string;
+  spoilDisposalPlan: string;
+  vegetationPlan: string;
+  landscapePlan: string;
+  nearbyImpactPlan: string;
+  wastePlan: string;
+  noiseDustPlan: string;
+  wastewaterPlan: string;
+  trafficPlan: string;
+  postManagementPlan: string;
+}
+
+export interface DocumentDraft {
+  id: string;
+  templateId: string;
+  title: string;
+  status: DocumentDraftStatus;
+  selected: boolean;
+  overrides: Record<string, string>;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
 }
 
 export type ParcelBoundary =
@@ -132,6 +223,8 @@ export interface GeneratedDocument {
   createdBy: string;
   notice: string;
   errorMessage?: string;
+  templateIds?: string[];
+  submittedAt?: string;
 }
 
 export interface ReceiptRecord {
@@ -160,8 +253,11 @@ export interface CaseRecord {
   organizationId: string;
   title: string;
   businessFields: string[];
+  contractReference: string;
+  caseMemo: string;
   applicantName: string;
   applicantContact?: string;
+  parties: PartyRecord[];
   assigneeId: string;
   assigneeName: string;
   status: CaseStatusId;
@@ -175,6 +271,9 @@ export interface CaseRecord {
   documentVersions: GeneratedDocument[];
   projectPurpose: string;
   projectPeriod: { start: string; end: string };
+  buildingPlan: BuildingPlan;
+  permitForm: PermitFormData;
+  projectPlanDetails: ProjectPlanDetails;
   constructionSummary: string;
   scheduleSummary: string;
   safetyPlan: string;
@@ -186,6 +285,7 @@ export interface CaseRecord {
     projectPlan: string;
     managementPlan: string;
   };
+  documentDrafts: DocumentDraft[];
   nextAction: string;
   nextDeadlineAt?: string;
   reminderOffsets: number[];
