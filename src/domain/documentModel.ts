@@ -11,6 +11,7 @@ import {
 } from "./documentTemplates";
 
 export interface DocumentFieldRow {
+  id: string;
   label: string;
   value: string;
   required: boolean;
@@ -89,6 +90,7 @@ function buildSections(caseRecord: CaseRecord, template: DocumentTemplateDefinit
     const value = documentFieldValue(caseRecord, template.id, field).trim();
     const edited = Boolean(draft && Object.prototype.hasOwnProperty.call(draft.overrides, field.id));
     const row: DocumentFieldRow = {
+      id: field.id,
       label: field.label,
       value: value || "작성 필요",
       required: Boolean(field.required),
@@ -149,9 +151,9 @@ function buildTemplateModel(caseRecord: CaseRecord, template: DocumentTemplateDe
   };
 }
 
-export function buildCaseDocumentModels(caseRecord: CaseRecord): CaseDocumentModel[] {
+export function buildCaseDocumentModels(caseRecord: CaseRecord, templateIds?: string[]): CaseDocumentModel[] {
   const drafts = ensureDocumentDrafts(caseRecord);
-  const selected = new Set(drafts.filter((draft) => draft.selected).map((draft) => draft.templateId));
+  const selected = new Set(templateIds ?? drafts.filter((draft) => draft.selected).map((draft) => draft.templateId));
   return applicableDocumentTemplates(caseRecord)
     .filter((template) => selected.has(template.id))
     .map((template) => buildTemplateModel(caseRecord, template));
