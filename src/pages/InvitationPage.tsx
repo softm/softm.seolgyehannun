@@ -46,7 +46,7 @@ export function InvitationPage() {
 
   return (
     <main className="invitation-page">
-      <Link to="/" aria-label="설계한눈 홈"><Brand /></Link>
+      <Brand />
       <section className="invitation-card">
         <span className={`invitation-icon ${accepted ? "accepted" : ""}`}>{accepted ? <CheckCircle2 /> : <MailCheck />}</span>
         <span className="page-kicker">조직 초대</span>
