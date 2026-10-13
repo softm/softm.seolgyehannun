@@ -6,6 +6,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { useAuth, useCases } from "../context";
 import { normalizeCaseRecord } from "../domain/caseRecord";
 import { buildCaseDocumentModels, documentReviewWarnings, documentValidationErrors } from "../domain/documentModel";
+import { applicableDocumentTemplates, ensureDocumentDrafts, resolveDocumentSource } from "../domain/documentTemplates";
 import { exportCaseDocx, exportCasePdf } from "../services/documentExport";
 import { generateAndOpenCaseDocument, openPrivateDocument } from "../services/generatedDocuments";
 import { loadCaseSubcollections } from "../services/caseRepository";
@@ -163,8 +164,34 @@ function DocumentWorkspace({
   const models = buildCaseDocumentModels(draft);
   const errors = documentValidationErrors(draft);
   const warnings = documentReviewWarnings(draft);
+  const defaultReviewCount = useMemo(() => {
+    const drafts = ensureDocumentDrafts(draft);
+    const selectedDrafts = new Map(drafts.filter((item) => item.selected).map((item) => [item.templateId, item]));
+    return applicableDocumentTemplates(draft)
+      .filter((template) => selectedDrafts.has(template.id))
+      .flatMap((template) => template.fields.map((field) => ({ field, draft: selectedDrafts.get(template.id) })))
+      .filter(({ field, draft: documentDraft }) => {
+        if (resolveDocumentSource(draft, field.sourceKey).trim()) return false;
+        const defaultValue = typeof field.defaultContent === "function" ? field.defaultContent(draft) : field.defaultContent ?? "";
+        return Boolean(defaultValue.trim()) && !Object.prototype.hasOwnProperty.call(documentDraft?.overrides ?? {}, field.id);
+      }).length;
+  }, [draft]);
+  const reviewNeeded = warnings.length + defaultReviewCount;
+  const savePending = pending === `${draft.id}-save`;
+  const dirty = draft.updatedAt !== caseRecord.updatedAt;
+  const saveFailed = message.includes("초안을 저장하지 못했습니다");
+  const canGenerate = Boolean(models.length) && !errors.length;
 
   useEffect(() => setDraft(caseRecord), [caseRecord]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
 
   function patchDraft(patch: Partial<CaseRecord>) {
     setDraft((current) => ({ ...current, ...patch, updatedAt: new Date().toISOString() }));
@@ -173,9 +200,9 @@ function DocumentWorkspace({
 
   return (
     <div className="simple-page document-studio-page">
-      <header className="page-header document-studio-header"><div><Link to="/app/documents" className="back-link"><ArrowLeft size={16} /> 문서 목록</Link><span className="page-kicker">{caseRecord.id}</span><h1>{caseRecord.title}</h1><p>{models.length}종 문서가 공통정보와 연결되어 있습니다.</p></div><div className="studio-actions"><button type="button" className="button button-secondary" onClick={() => void onSave(draft)} disabled={viewer || Boolean(pending)}><Save size={17} /> {pending === `${draft.id}-save` ? "저장 중" : "초안 저장"}</button><button type="button" className="button button-secondary" onClick={() => void onGenerate(draft, "docx")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> 전체 DOCX</button><button type="button" className="button button-primary" onClick={() => void onGenerate(draft, "pdf")} disabled={viewer || Boolean(pending) || !models.length}><Sparkles size={17} /> 전체 PDF</button></div></header>
+      <header className="page-header document-studio-header"><div><Link to="/app/documents" className="back-link" onClick={(event) => { if (dirty && !window.confirm("저장하지 않은 변경사항이 있습니다. 문서 목록으로 이동할까요?")) event.preventDefault(); }}><ArrowLeft size={16} /> 문서 목록</Link><span className="page-kicker">{caseRecord.id}</span><h1>{caseRecord.title}</h1><div className="studio-subline"><span>{models.length}종 문서 · 공통정보 연결</span><span className={`draft-save-state ${savePending ? "saving" : saveFailed ? "failed" : dirty ? "dirty" : "saved"}`}>{savePending ? "저장 중…" : saveFailed ? "저장 실패 · 다시 시도해 주세요" : dirty ? "저장할 변경사항 있음" : `저장됨 ${new Date(caseRecord.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`}</span></div></div><div className="studio-actions"><button type="button" className="button button-secondary" onClick={() => void onSave(draft)} disabled={viewer || Boolean(pending) || !dirty}><Save size={17} /> {savePending ? "저장 중" : "초안 저장"}</button><button type="button" className="button button-secondary" onClick={() => void onGenerate(draft, "docx")} disabled={viewer || Boolean(pending) || !canGenerate} title={errors.length ? "필수 항목을 확인한 뒤 제출본을 생성할 수 있습니다." : undefined}><Sparkles size={17} /> 선택 문서 DOCX</button><button type="button" className="button button-primary" onClick={() => void onGenerate(draft, "pdf")} disabled={viewer || Boolean(pending) || !canGenerate} title={errors.length ? "필수 항목을 확인한 뒤 제출본을 생성할 수 있습니다." : undefined}><Sparkles size={17} /> 선택 문서 PDF</button></div></header>
       {message && <div className="settings-save-message" role="status">{message}</div>}
-      <div className={`document-health ${errors.length ? "has-errors" : "ready"}`}><ShieldCheck size={19} /><div><strong>{errors.length ? `저장 차단 오류 ${errors.length}건` : "공통정보 저장 가능"}</strong><span>제출 전 확인 {warnings.length}건 · 선택 문서 {models.length}종</span></div>{errors.length > 0 && <ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul>}</div>
+      <div className={`document-health ${errors.length ? "has-errors" : reviewNeeded ? "needs-review" : "ready"}`}><ShieldCheck size={19} /><div><strong>{errors.length ? `출력 전 필수 확인 ${errors.length}건` : reviewNeeded ? `출력 전 검토 ${reviewNeeded}건` : "선택 문서 출력 준비 완료"}</strong><span>{errors.length ? "초안은 저장할 수 있으며, 필수 항목을 채우면 PDF·DOCX 생성이 활성화됩니다." : reviewNeeded ? `기본문구 ${defaultReviewCount}건 · 제출자료 등 ${warnings.length}건 · 초안 출력은 가능합니다.` : `검토 완료 · 제출 묶음 ${models.length}종`}</span></div>{errors.length ? <span className="document-health-count">필수 {errors.length}</span> : reviewNeeded ? <span className="document-health-count review">검토 필요</span> : <span className="document-health-count ready">준비 완료</span>}</div>
       <DocumentDraftEditor caseRecord={draft} onChange={patchDraft} onDownload={(templateId, type) => void onGenerate(draft, type, templateId)} downloadPending={pending} readOnly={viewer} />
       <section className="table-card version-history"><div className="card-title"><div><h3>제출본 버전</h3><p>생성 시점의 사건 값과 문서 선택을 고정한 이력입니다.</p></div></div>{caseRecord.documentVersions.length ? <div className="version-list">{[...caseRecord.documentVersions].sort((a, b) => b.version - a.version).map((version) => <article key={version.id}><div><strong>제출본 v{version.version}</strong><small>{new Date(version.createdAt).toLocaleString("ko-KR")} · {version.templateIds?.length ?? "기존"}종 문서</small></div><span>{version.submittedAt ? "제출 완료" : "생성 완료"}</span><div>{version.docxPath && <button type="button" onClick={() => void onOpenExisting(version.docxPath!, `${version.id}-docx`)}><Download size={15} /> DOCX</button>}{version.pdfPath && <button type="button" onClick={() => void onOpenExisting(version.pdfPath!, `${version.id}-pdf`)}><Download size={15} /> PDF</button>}</div></article>)}</div> : <div className="empty-version"><FileText /><strong>아직 생성된 제출본이 없습니다.</strong><span>오른쪽 위에서 DOCX 또는 PDF를 생성하면 이력으로 보존됩니다.</span></div>}</section>
     </div>
