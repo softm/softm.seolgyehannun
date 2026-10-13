@@ -107,7 +107,7 @@ function applyCors(request: Request, response: Response): boolean {
 
 function copyAllowedQuery(source: URLSearchParams, target: URLSearchParams): void {
   source.forEach((value, key) => {
-    if (ALLOWED_QUERY_KEYS.has(key)) target.append(key, value);
+    if (ALLOWED_QUERY_KEYS.has(key.toLowerCase())) target.append(key, value);
   });
 }
 
