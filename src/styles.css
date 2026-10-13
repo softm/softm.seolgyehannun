@@ -310,6 +310,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .organization-switcher strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .organization-switcher small { color: #84909b; font-size: 9px; }
 .organization-switcher > svg { margin-left: auto; color: #84919d; }
+.workspace-switcher { position: relative; }
+.workspace-switcher > .organization-switcher { width: 100%; text-align: left; }
+.workspace-switcher > .organization-switcher > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
+.workspace-menu { width: 100%; padding: 9px; border: 1px solid #d8e2e0; border-radius: 13px; background: white; position: absolute; top: calc(100% - 16px); left: 0; z-index: 20; box-shadow: 0 18px 42px rgba(12, 44, 40, 0.18); }
+.workspace-menu > header { min-height: 34px; padding: 0 6px 7px; display: flex; align-items: center; gap: 7px; color: #526560; font-size: 13px; }
+.workspace-menu > header span { margin-left: auto; color: var(--teal-700); font-weight: 800; }
+.workspace-menu > div { display: grid; gap: 5px; }
+.workspace-menu > div > button { width: 100%; min-height: 54px; padding: 7px 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; display: flex; align-items: center; gap: 9px; color: var(--ink); text-align: left; cursor: pointer; }
+.workspace-menu > div > button:hover, .workspace-menu > div > button.current { border-color: #cae4df; background: #eff9f7; }
+.workspace-menu > div > button > span { width: 34px; height: 34px; border-radius: 9px; background: var(--mint-100); color: var(--teal-700); display: grid; place-items: center; font-size: 14px; font-weight: 850; }
+.workspace-menu > div > button > div { min-width: 0; margin-right: auto; display: grid; gap: 2px; }
+.workspace-menu > div > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.workspace-menu > div > button small { color: #72817d; font-size: 12px; }
+.workspace-menu > div > button > svg { flex: 0 0 auto; color: var(--teal-700); }
+.workspace-menu > p { margin: 7px 3px 2px; color: #b83e32; font-size: 12px; line-height: 1.45; }
 .app-navigation { display: grid; gap: 4px; }
 .app-navigation > small { margin: 0 10px 8px; color: #98a2ac; font-size: 9px; font-weight: 750; letter-spacing: 0.05em; }
 .app-navigation a { min-height: 45px; padding: 0 11px; border-radius: 10px; display: flex; align-items: center; gap: 11px; color: #526271; font-size: 13px; font-weight: 650; }
