@@ -19,9 +19,12 @@ describe("개발행위 국가서식 PDF", () => {
     expect(checkbox.style.left).toBe("26.3%");
     expect(checkbox.style.fontSize).toBe("15px");
     expect(Number.parseFloat(applicantName.style.fontSize)).toBeGreaterThanOrEqual(10.2);
-    expect(applicantName.style.fontWeight).toBe("680");
+    expect(front.style.fontFamily).toContain("SeolgyeNanumGothic");
+    expect(front.style.fontSynthesis).toBe("none");
+    expect(applicantName.style.fontWeight).toBe("500");
     expect(siteAddress.style.height).toBe("2.45%");
-    expect(Number.parseFloat(siteAddress.style.fontSize)).toBeGreaterThanOrEqual(9.2);
+    expect(siteAddress.textContent).toContain("외 1필지");
+    expect(Number.parseFloat(siteAddress.style.fontSize)).toBeGreaterThanOrEqual(9.8);
     expect(purpose.style.left).toBe("24.8%");
     expect(Number.parseFloat(purpose.style.fontSize)).toBeGreaterThanOrEqual(9.5);
 
