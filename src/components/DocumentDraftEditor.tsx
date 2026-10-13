@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   Check,
   CheckCircle2,
+  Download,
   ExternalLink,
   FilePenLine,
   Link2,
@@ -25,6 +26,8 @@ import type { CaseRecord, DocumentDraft } from "../types";
 interface DocumentDraftEditorProps {
   caseRecord: CaseRecord;
   onChange: (patch: Partial<CaseRecord>) => void;
+  onDownload?: (templateId: string, type: "pdf" | "docx") => void;
+  downloadPending?: string;
   readOnly?: boolean;
 }
 
@@ -46,7 +49,7 @@ function withResetField(drafts: DocumentDraft[], templateId: string, fieldId: st
   });
 }
 
-export function DocumentDraftEditor({ caseRecord, onChange, readOnly = false }: DocumentDraftEditorProps) {
+export function DocumentDraftEditor({ caseRecord, onChange, onDownload, downloadPending = "", readOnly = false }: DocumentDraftEditorProps) {
   const templates = useMemo(() => applicableDocumentTemplates(caseRecord), [caseRecord.permits]);
   const drafts = useMemo(() => ensureDocumentDrafts(caseRecord), [caseRecord]);
   const [activeId, setActiveId] = useState(() => templates[0]?.id ?? "");
@@ -99,7 +102,7 @@ export function DocumentDraftEditor({ caseRecord, onChange, readOnly = false }: 
                   aria-label={`${template.title} 출력 포함`}
                   disabled={readOnly}
                 />
-                <span>출력</span>
+                <span>전체 묶음</span>
               </label>
             </div>
           );
@@ -117,7 +120,13 @@ export function DocumentDraftEditor({ caseRecord, onChange, readOnly = false }: 
             <h3>{active.title}</h3>
             <p>{active.description}</p>
           </div>
-          {active.sourceUrl && <a href={active.sourceUrl} target="_blank" rel="noreferrer">원문 서식 <ExternalLink size={15} /></a>}
+          <div className="template-editor-actions">
+            {active.sourceUrl && <a href={active.sourceUrl} target="_blank" rel="noreferrer">원문 서식 <ExternalLink size={15} /></a>}
+            {onDownload && <>
+              <button type="button" onClick={() => onDownload(active.id, "docx")} disabled={readOnly || Boolean(downloadPending)}><Download size={15} /> {downloadPending.endsWith("-docx") ? "생성 중" : "DOCX"}</button>
+              <button type="button" className="primary" onClick={() => onDownload(active.id, "pdf")} disabled={readOnly || Boolean(downloadPending)}><Download size={15} /> {downloadPending.endsWith("-pdf") ? "생성 중" : "PDF"}</button>
+            </>}
+          </div>
         </header>
 
         <div className="linked-data-banner">
@@ -145,7 +154,7 @@ export function DocumentDraftEditor({ caseRecord, onChange, readOnly = false }: 
               disabled: readOnly,
               placeholder: field.placeholder ?? (field.required ? "필수 항목을 입력하세요." : "해당 시 입력"),
             };
-            return <label key={field.id} className={field.kind === "textarea" ? "wide" : ""}><span>{field.label}{field.required && <b>필수</b>}</span><div className="template-input-wrap">{field.kind === "textarea" ? <textarea {...commonProps} rows={5} /> : field.kind === "choice" ? <select {...commonProps}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input {...commonProps} type={field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text"} />}{field.sourceKey && <span className={`value-origin ${overridden ? "edited" : "linked"}`}>{overridden ? "직접 수정" : "자동값"}</span>}</div><small>{field.sourceKey ? <>{overridden ? "문서별 수정값" : `공통정보 · ${field.sourceKey}`}{overridden && <button type="button" onClick={() => resetField(field.id)} disabled={readOnly}><RotateCcw size={12} /> 자동값 복원{automaticValue ? ` (${automaticValue.slice(0, 24)})` : ""}</button>}</> : "이 문서에서만 입력하는 항목"}</small></label>;
+            return <label key={field.id} className={field.kind === "textarea" ? "wide" : ""}><span>{field.label}{field.required && <b>필수</b>}</span><div className={`template-input-wrap ${overridden ? "has-override" : ""}`}>{field.kind === "textarea" ? <textarea {...commonProps} rows={5} /> : field.kind === "choice" ? <select {...commonProps}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : <input {...commonProps} type={field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text"} />}{overridden && <span className="value-origin edited">직접 수정</span>}</div><small>{field.sourceKey ? <><Link2 size={12} aria-hidden="true" />{overridden ? "문서별 수정값" : `공통정보 · ${field.sourceKey}`}{overridden && <button type="button" onClick={() => resetField(field.id)} disabled={readOnly}><RotateCcw size={12} /> 자동값 복원{automaticValue ? ` (${automaticValue.slice(0, 24)})` : ""}</button>}</> : "이 문서에서만 입력하는 항목"}</small></label>;
           })}</div></fieldset>)}
         </div>
       </section>
