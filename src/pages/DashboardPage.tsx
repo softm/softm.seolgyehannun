@@ -14,6 +14,7 @@ import {
   Filter,
   List,
   Map as MapIcon,
+  MapPin,
   Paperclip,
   Pencil,
   Plus,
@@ -43,9 +44,10 @@ import type { AttachmentRecord, CaseRecord, CaseStatus, CaseStatusId } from "../
 import { ParcelMap } from "../components/ParcelMap";
 import { StatusBadge } from "../components/StatusBadge";
 
-type DetailTab = "overview" | "deadline" | "files" | "history";
+type DetailTab = "overview" | "map" | "deadline" | "files" | "history";
 const DASHBOARD_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [48, 48, 360, 48];
 const WORKSPACE_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [48, 48, 48, 48];
+const DETAIL_SELECTED_CASE_FIT_PADDING: [number, number, number, number] = [72, 44, 76, 44];
 
 interface CaseWorkspacePreference {
   viewMode: CaseViewMode;
@@ -532,8 +534,17 @@ interface CaseDetailCardProps {
 }
 
 function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, onExport, exporting, viewer, statuses, onAttachmentOpen, modal = false }: CaseDetailCardProps) {
+  const hasMapLocation = caseRecord.parcels.some((parcel) => (
+    Number.isFinite(parcel.longitude)
+    && Number.isFinite(parcel.latitude)
+    && parcel.longitude >= -180
+    && parcel.longitude <= 180
+    && parcel.latitude >= -90
+    && parcel.latitude <= 90
+  ));
+
   return (
-    <aside className={`case-detail-card ${open ? "open" : ""}`} role={modal ? "dialog" : undefined} aria-modal={modal || undefined} aria-label="선택 업무 상세">
+    <aside className={`case-detail-card ${open ? "open" : ""} ${tab === "map" ? "map-open" : ""}`} role={modal ? "dialog" : undefined} aria-modal={modal || undefined} aria-label="선택 업무 상세">
       <div className="detail-drag-handle" />
       <header>
         <div><StatusBadge status={caseRecord.status} statuses={statuses} /><span className="case-id">{caseRecord.id}</span></div>
@@ -541,8 +552,8 @@ function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, 
       </header>
       <div className="detail-title"><h2>{caseRecord.title}</h2><p>{caseRecord.primaryPermitName} · {caseRecord.jurisdictionName} · {caseRecord.parcels.length}필지</p></div>
       <div className="detail-tabs" role="tablist">
-        {(["overview", "deadline", "files", "history"] as DetailTab[]).map((item) => (
-          <button type="button" role="tab" aria-selected={tab === item} key={item} onClick={() => setTab(item)}>{({ overview: "개요", deadline: "기한", files: "자료", history: "기록" } as const)[item]}</button>
+        {(["overview", "map", "deadline", "files", "history"] as DetailTab[]).map((item) => (
+          <button type="button" role="tab" aria-selected={tab === item} key={item} onClick={() => setTab(item)}>{({ overview: "개요", map: "지도", deadline: "기한", files: "자료", history: "기록" } as const)[item]}</button>
         ))}
       </div>
       <div className="detail-body">
@@ -557,6 +568,30 @@ function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, 
             <section className="detail-section"><div className="section-title"><h3>접수</h3><span>{caseRecord.receipts.length}</span></div>{caseRecord.receipts.length ? caseRecord.receipts.map((receipt) => <div className="receipt-line" key={receipt.id}><strong>{receipt.receiptNumber}</strong><small>{receipt.agency} · {receipt.sourceLabel}</small></div>) : <div className="empty-inline">아직 접수번호가 없습니다.</div>}</section>
           </>
         )}
+        {tab === "map" && (
+          <section className="detail-map-view">
+            {hasMapLocation ? (
+              <div className="detail-map-canvas">
+                <ParcelMap cases={[caseRecord]} selectedCaseId={caseRecord.id} selectedCaseFitPadding={DETAIL_SELECTED_CASE_FIT_PADDING} />
+              </div>
+            ) : (
+              <div className="detail-map-empty">
+                <MapPin size={28} />
+                <strong>지도 위치를 확인할 수 없습니다.</strong>
+                <span>업무 수정에서 필지 주소 또는 지도 위치를 등록해 주세요.</span>
+              </div>
+            )}
+            <div className="detail-map-parcels">
+              <div className="section-title"><h3>지도에 연결된 필지</h3><span>{caseRecord.parcels.length}</span></div>
+              {caseRecord.parcels.map((parcel, index) => (
+                <div className="parcel-line" key={parcel.id}>
+                  <span>{index === 0 ? "대표" : parcel.role || "연접"}</span>
+                  <div><strong>{parcel.address || parcel.lotNumber || "주소 확인 필요"}</strong><small>{parcel.category || "지목 미확인"} · 계획면적 {parcel.plannedAreaM2?.toLocaleString("ko-KR") ?? "-"}㎡</small></div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         {tab === "deadline" && (
           <section className="detail-section deadline-list"><div className="section-title"><h3>기한과 근거</h3><span>{caseRecord.deadlines.length}</span></div>{caseRecord.deadlines.map((deadline) => <article key={deadline.id}><div><strong>{deadline.label}</strong><small>{deadline.basis}</small></div><div><em>{deadlineLabel(deadline.dueAt)}</em><time>{deadline.dueAt}</time></div>{deadline.isManual && <span>수동 조정 · {deadline.manualReason}</span>}</article>)}</section>
         )}
@@ -568,15 +603,20 @@ function CaseDetailCard({ caseRecord, tab, setTab, open, close, onStatusChange, 
         )}
       </div>
       <footer className="detail-actions">
-        <div className="status-change">
-          <select value={caseRecord.status} onChange={(event) => onStatusChange(event.target.value)} disabled={viewer} aria-label="업무 상태 변경">
-            {statuses.map((status) => <option value={status.id} key={status.id} disabled={!canTransitionStatus(caseRecord.status, status.id)}>{status.label}</option>)}
-          </select><ChevronDown size={15} />
+        <div className="detail-status-group">
+          <span>업무 상태</span>
+          <div className="status-change">
+            <select value={caseRecord.status} onChange={(event) => onStatusChange(event.target.value)} disabled={viewer} aria-label="업무 상태 변경">
+              {statuses.map((status) => <option value={status.id} key={status.id} disabled={!canTransitionStatus(caseRecord.status, status.id)}>{status.label}</option>)}
+            </select><ChevronDown size={15} />
+          </div>
         </div>
-        {!viewer && <Link className="button button-secondary" to={`/app/cases/${caseRecord.id}/edit?step=5`}><Pencil size={17} /> 수정</Link>}
-        <Link className="button button-secondary" to={`/app/documents/${caseRecord.id}`}><FileText size={17} /> 문서 작업실</Link>
-        <button type="button" className="button button-secondary" onClick={() => onExport("docx")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><FileText size={17} />{exporting === "docx" ? "생성 중" : "DOCX"}</button>
-        <button type="button" className="button button-primary" onClick={() => onExport("pdf")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><Sparkles size={17} />{exporting === "pdf" ? "생성 중" : "PDF"}</button>
+        <div className="detail-action-grid" role="group" aria-label="업무 빠른 작업">
+          {!viewer && <Link className="detail-action-card edit" to={`/app/cases/${caseRecord.id}/edit?step=5`} aria-label="업무 정보 수정"><span className="detail-action-icon"><Pencil size={17} /></span><span className="detail-action-copy"><small>업무 정보</small><strong>수정</strong></span></Link>}
+          <Link className="detail-action-card studio" to={`/app/documents/${caseRecord.id}`} aria-label="문서 작업실 열기"><span className="detail-action-icon"><FileText size={17} /></span><span className="detail-action-copy"><small>초안·버전</small><strong>문서 작업실</strong></span></Link>
+          <button type="button" className="detail-action-card export" onClick={() => onExport("docx")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><span className="detail-action-icon"><Download size={17} /></span><span className="detail-action-copy"><small>편집용</small><strong>{exporting === "docx" ? "생성 중" : "DOCX"}</strong></span></button>
+          <button type="button" className="detail-action-card submit" onClick={() => onExport("pdf")} disabled={viewer || Boolean(exporting)} title={viewer ? "열람자는 기존 문서만 다운로드할 수 있습니다." : undefined}><span className="detail-action-icon"><Sparkles size={17} /></span><span className="detail-action-copy"><small>검토·제출용</small><strong>{exporting === "pdf" ? "생성 중" : "PDF"}</strong></span></button>
+        </div>
       </footer>
     </aside>
   );
