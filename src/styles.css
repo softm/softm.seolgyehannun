@@ -458,7 +458,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .map-layer-notice { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); width: min(420px, calc(100% - 24px)); min-height: 44px; padding: 9px 12px; border: 1px solid #efd8a8; border-radius: 10px; background: rgba(255,248,231,0.96); color: #8b5b08; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; line-height: 1.5; box-shadow: var(--shadow-sm); z-index: 5; }
 .map-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); min-height: 40px; padding: 0 14px; border-radius: 9px; background: rgba(0,58,55,0.88); color: white; display: flex; align-items: center; font-size: 13px; font-weight: 700; z-index: 4; }
 .case-detail-card { width: calc(100% - 36px); max-width: 720px; max-height: 62%; margin-inline: auto; border: 1px solid #dce3e1; border-radius: 16px; position: absolute; left: 0; right: 0; bottom: 18px; background: white; box-shadow: 0 20px 50px rgba(24,58,52,0.18); overflow: hidden; z-index: 5; display: flex; flex-direction: column; }
-.case-detail-card.map-open { max-height: calc(100% - 36px); }
+.case-detail-card.map-open { height: calc(100% - 36px); max-height: calc(100% - 36px); }
 .detail-drag-handle { display: none; }
 .case-detail-card > header { min-height: 49px; padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; }
 .case-detail-card > header > div { display: flex; align-items: center; gap: 7px; }
@@ -470,7 +470,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .detail-tabs { min-height: 40px; padding: 0 10px; border-top: 1px solid #eef1f3; border-bottom: 1px solid #e5eaed; display: flex; }
 .detail-tabs button { min-width: 58px; padding: 0 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #78848e; font-size: 9px; font-weight: 700; cursor: pointer; }
 .detail-tabs button[aria-selected="true"] { border-bottom-color: var(--teal-700); color: var(--teal-700); }
-.detail-body { min-height: 0; padding: 12px 18px 15px; overflow: auto; }
+.detail-body { min-height: 0; padding: 12px 18px 15px; overflow: auto; flex: 1; }
 .next-action-box { min-height: 61px; padding: 12px; border: 1px solid #cfe4e0; border-radius: 11px; background: #f1f9f7; display: flex; align-items: center; gap: 10px; }
 .next-action-box.late { border-color: #efc5bd; background: #fff4f1; }
 .next-action-box > div { display: grid; gap: 4px; }
@@ -525,7 +525,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .detail-map-empty strong { color: #334b46; font-size: 14px; }
 .detail-map-empty span { font-size: 12px; }
 .detail-map-parcels { padding: 0 2px; }
-.detail-actions { min-height: 132px; padding: 9px 12px; border-top: 1px solid #e0e8e6; background: linear-gradient(180deg, #fbfdfc, #f4f8f7); display: grid; grid-template-columns: minmax(128px, .72fr) minmax(0, 3fr); align-items: stretch; gap: 9px; }
+.detail-actions { min-height: 132px; padding: 9px 12px; border-top: 1px solid #e0e8e6; background: linear-gradient(180deg, #fbfdfc, #f4f8f7); display: grid; grid-template-columns: minmax(128px, .72fr) minmax(0, 3fr); align-items: stretch; gap: 9px; flex: 0 0 auto; }
 .detail-status-group { min-width: 0; display: grid; align-content: center; gap: 4px; }
 .detail-status-group > span { color: #71817d; font-size: 10px; font-weight: 800; }
 .status-change { min-width: 0; position: relative; }
@@ -1372,7 +1372,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .case-workspace.mobile-list .case-map-panel { display: none; }
   .case-map-panel, .parcel-map-shell, .parcel-map { min-height: 560px; }
   .case-detail-card { width: 100%; max-width: none; max-height: 76%; border-radius: 18px 18px 0 0; left: 0; right: 0; bottom: -100%; transition: bottom 220ms ease; }
-  .case-detail-card.map-open { max-height: 92%; }
+  .case-detail-card.map-open { height: min(92vh, 760px); height: min(92dvh, 760px); max-height: min(92vh, 760px); max-height: min(92dvh, 760px); position: fixed; }
   .case-detail-card.open { bottom: 0; }
   .case-list-detail-host { place-items: end center; padding: 0; }
   .case-list-detail-host .case-detail-card { width: 100%; max-height: 82vh; border-radius: 18px 18px 0 0; position: relative; right: auto; bottom: auto; }
