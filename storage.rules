@@ -10,19 +10,56 @@ service firebase.storage {
       return firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
-    function isMember(orgId) {
-      let organization = firestore.get(/databases/(default)/documents/organizations/$(orgId)).data;
+    function platformAdmin() {
+      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function isMembershipActive(orgId) {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid))
-        && (!('status' in membership(orgId).data) || membership(orgId).data.status == 'active')
-        && (!('platformStatus' in organization) || organization.platformStatus != 'suspended')
+        && (!('status' in membership(orgId).data) || membership(orgId).data.status == 'active');
+    }
+
+    function isOrganizationEnabled(orgId) {
+      let organization = firestore.get(/databases/(default)/documents/organizations/$(orgId)).data;
+      return (!('platformStatus' in organization) || organization.platformStatus != 'suspended')
         && (!('subscription' in organization)
           || !('expiresAt' in organization.subscription)
           || organization.subscription.expiresAt >= request.time);
     }
 
+    function hasDelegatedWorkspace(orgId) {
+      let organization = firestore.get(/databases/(default)/documents/organizations/$(orgId)).data;
+      return signedIn()
+        && 'platformWorkspaceOrganizationId' in request.auth.token
+        && 'platformWorkspaceRole' in request.auth.token
+        && 'platformWorkspaceExpiresAt' in request.auth.token
+        && 'platformWorkspaceAccessVersion' in request.auth.token
+        && request.auth.token.platformWorkspaceOrganizationId == orgId
+        && ((!('platformAccessVersion' in organization) && request.auth.token.platformWorkspaceAccessVersion == 0)
+          || organization.platformAccessVersion == request.auth.token.platformWorkspaceAccessVersion)
+        && request.auth.token.platformWorkspaceExpiresAt > request.time.toMillis();
+    }
+
+    function isPlatformAdminActive() {
+      return firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid))
+        && platformAdmin().data.status == 'active';
+    }
+
+    function isMember(orgId) {
+      return isOrganizationEnabled(orgId)
+        && ((hasDelegatedWorkspace(orgId) && isPlatformAdminActive())
+          || (!hasDelegatedWorkspace(orgId) && isMembershipActive(orgId)));
+    }
+
     function canEdit(orgId) {
-      return isMember(orgId) && membership(orgId).data.role in ['admin', 'editor'];
+      return isOrganizationEnabled(orgId)
+        && ((hasDelegatedWorkspace(orgId)
+            && isPlatformAdminActive()
+            && request.auth.token.platformWorkspaceRole in ['admin', 'editor'])
+          || (!hasDelegatedWorkspace(orgId)
+            && isMembershipActive(orgId)
+            && membership(orgId).data.role in ['admin', 'editor']));
     }
 
     function allowedExtension(fileName) {

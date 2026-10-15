@@ -10,6 +10,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
+    function workspaceAccess() {
+      return get(/databases/$(database)/documents/platformWorkspaceAccess/$(request.auth.uid));
+    }
+
+    function platformAdmin() {
+      return get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
     function isMembershipActive(orgId) {
       return signedIn()
         && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
@@ -24,12 +32,31 @@ service cloud.firestore {
           || organization.subscription.expiresAt >= request.time);
     }
 
+    function isWorkspaceAccessActive(orgId) {
+      let organization = get(/databases/$(database)/documents/organizations/$(orgId)).data;
+      return signedIn()
+        && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid))
+        && platformAdmin().data.status == 'active'
+        && exists(/databases/$(database)/documents/platformWorkspaceAccess/$(request.auth.uid))
+        && workspaceAccess().data.status == 'active'
+        && workspaceAccess().data.organizationId == orgId
+        && ((!('platformAccessVersion' in organization)
+            && (!('accessVersion' in workspaceAccess().data) || workspaceAccess().data.accessVersion == 0))
+          || (organization.platformAccessVersion == workspaceAccess().data.accessVersion))
+        && workspaceAccess().data.expiresAt > request.time;
+    }
+
     function isMember(orgId) {
-      return isMembershipActive(orgId) && isOrganizationEnabled(orgId);
+      return isOrganizationEnabled(orgId)
+        && (isWorkspaceAccessActive(orgId) || isMembershipActive(orgId));
     }
 
     function hasRole(orgId, roles) {
-      return isMember(orgId) && membership(orgId).data.role in roles;
+      return isOrganizationEnabled(orgId)
+        && ((isWorkspaceAccessActive(orgId) && workspaceAccess().data.role in roles)
+          || (!isWorkspaceAccessActive(orgId)
+            && isMembershipActive(orgId)
+            && membership(orgId).data.role in roles));
     }
 
     function canEdit(orgId) {
@@ -46,9 +73,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /platformWorkspaceAccess/{userId} {
+      allow read, write: if false;
+    }
+
     match /organizations/{orgId} {
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read: if isMembershipActive(orgId);
+      allow read: if isMembershipActive(orgId) || isWorkspaceAccessActive(orgId);
       allow update: if isAdmin(orgId);
       allow delete: if false;
 
