@@ -12,7 +12,8 @@ service cloud.firestore {
 
     function isMember(orgId) {
       return signedIn()
-        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && (!('status' in membership(orgId).data) || membership(orgId).data.status == 'active');
     }
 
     function hasRole(orgId, roles) {
@@ -41,7 +42,8 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(orgId);
-        allow create, update, delete: if isAdmin(orgId);
+        allow create: if isAdmin(orgId) && memberId != request.auth.uid;
+        allow update, delete: if isAdmin(orgId) && memberId != request.auth.uid;
       }
 
       match /invitations/{invitationId} {
