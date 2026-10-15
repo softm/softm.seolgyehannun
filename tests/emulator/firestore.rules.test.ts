@@ -30,6 +30,12 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
       await setDoc(doc(firestore, "organizations/org-a/members/legacy-a"), { role: "viewer" });
       await setDoc(doc(firestore, "organizations/org-b"), { name: "B", ownerId: "admin-b" });
       await setDoc(doc(firestore, "organizations/org-b/members/admin-b"), { role: "admin", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-suspended"), { name: "정지 조직", ownerId: "admin-suspended", platformStatus: "suspended" });
+      await setDoc(doc(firestore, "organizations/org-suspended/members/admin-suspended"), { role: "admin", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-suspended/cases/case-1"), { organizationId: "org-suspended", title: "정지된 업무", version: 1 });
+      await setDoc(doc(firestore, "organizations/org-expired"), { name: "기간 만료 조직", ownerId: "admin-expired", platformStatus: "active", subscription: { status: "active", expiresAt: new Date("2020-01-01T00:00:00.000Z") } });
+      await setDoc(doc(firestore, "organizations/org-expired/members/admin-expired"), { role: "admin", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-expired/cases/case-1"), { organizationId: "org-expired", title: "기간 만료 업무", version: 1 });
       await setDoc(doc(firestore, "organizations/org-a/cases/case-1"), { organizationId: "org-a", title: "업무", version: 1 });
       await setDoc(doc(firestore, "organizations/org-a/cases/case-1/notifications/notice-1"), {
         recipientId: "viewer-a",
@@ -55,6 +61,24 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
   it("상태 필드가 없던 기존 구성원은 마이그레이션 전에도 읽을 수 있다", async () => {
     const legacy = environment.authenticatedContext("legacy-a").firestore();
     await assertSucceeds(getDoc(doc(legacy, "organizations/org-a/cases/case-1")));
+  });
+
+  it("사이트 관리자가 이용 정지한 조직은 조직 안내 외 업무와 파일 접근이 차단된다", async () => {
+    const context = environment.authenticatedContext("admin-suspended");
+    await assertSucceeds(getDoc(doc(context.firestore(), "organizations/org-suspended")));
+    await assertFails(getDoc(doc(context.firestore(), "organizations/org-suspended/cases/case-1")));
+    await assertFails(uploadBytes(
+      ref(context.storage(), "organizations/org-suspended/cases/case-1/attachments/a1/plan.pdf"),
+      new Uint8Array([1, 2, 3]),
+      { contentType: "application/pdf" },
+    ));
+  });
+
+  it("이용기간이 만료되면 조직 안내와 자기 권한만 읽고 업무 접근은 차단된다", async () => {
+    const firestore = environment.authenticatedContext("admin-expired").firestore();
+    await assertSucceeds(getDoc(doc(firestore, "organizations/org-expired")));
+    await assertSucceeds(getDoc(doc(firestore, "organizations/org-expired/members/admin-expired")));
+    await assertFails(getDoc(doc(firestore, "organizations/org-expired/cases/case-1")));
   });
 
   it("열람자의 업무 쓰기와 편집자의 구성원 관리를 차단한다", async () => {
