@@ -23,11 +23,13 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     await environment.withSecurityRulesDisabled(async (context) => {
       const firestore = context.firestore();
       await setDoc(doc(firestore, "organizations/org-a"), { name: "A", ownerId: "admin-a" });
-      await setDoc(doc(firestore, "organizations/org-a/members/admin-a"), { role: "admin" });
-      await setDoc(doc(firestore, "organizations/org-a/members/editor-a"), { role: "editor" });
-      await setDoc(doc(firestore, "organizations/org-a/members/viewer-a"), { role: "viewer" });
+      await setDoc(doc(firestore, "organizations/org-a/members/admin-a"), { role: "admin", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-a/members/editor-a"), { role: "editor", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-a/members/viewer-a"), { role: "viewer", status: "active" });
+      await setDoc(doc(firestore, "organizations/org-a/members/suspended-a"), { role: "editor", status: "suspended" });
+      await setDoc(doc(firestore, "organizations/org-a/members/legacy-a"), { role: "viewer" });
       await setDoc(doc(firestore, "organizations/org-b"), { name: "B", ownerId: "admin-b" });
-      await setDoc(doc(firestore, "organizations/org-b/members/admin-b"), { role: "admin" });
+      await setDoc(doc(firestore, "organizations/org-b/members/admin-b"), { role: "admin", status: "active" });
       await setDoc(doc(firestore, "organizations/org-a/cases/case-1"), { organizationId: "org-a", title: "업무", version: 1 });
       await setDoc(doc(firestore, "organizations/org-a/cases/case-1/notifications/notice-1"), {
         recipientId: "viewer-a",
@@ -44,6 +46,17 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     await assertFails(getDoc(doc(firestore, "organizations/org-a/cases/case-1")));
   });
 
+  it("사용 정지된 구성원의 모든 조직 접근을 차단한다", async () => {
+    const suspended = environment.authenticatedContext("suspended-a").firestore();
+    await assertFails(getDoc(doc(suspended, "organizations/org-a/cases/case-1")));
+    await assertFails(getDoc(doc(suspended, "organizations/org-a")));
+  });
+
+  it("상태 필드가 없던 기존 구성원은 마이그레이션 전에도 읽을 수 있다", async () => {
+    const legacy = environment.authenticatedContext("legacy-a").firestore();
+    await assertSucceeds(getDoc(doc(legacy, "organizations/org-a/cases/case-1")));
+  });
+
   it("열람자의 업무 쓰기와 편집자의 구성원 관리를 차단한다", async () => {
     const viewer = environment.authenticatedContext("viewer-a").firestore();
     const editor = environment.authenticatedContext("editor-a").firestore();
@@ -56,6 +69,15 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     const admin = environment.authenticatedContext("admin-a").firestore();
     await assertSucceeds(setDoc(doc(editor, "organizations/org-a/cases/case-1"), { organizationId: "org-a", title: "변경", version: 2 }));
     await assertSucceeds(setDoc(doc(admin, "organizations/org-a/members/new-user"), { role: "viewer" }));
+  });
+
+  it("관리자만 운영 설정을 쓰고 자기 자신의 멤버십은 직접 변경하지 못한다", async () => {
+    const admin = environment.authenticatedContext("admin-a").firestore();
+    const editor = environment.authenticatedContext("editor-a").firestore();
+    await assertSucceeds(setDoc(doc(admin, "organizations/org-a/settings/workflow"), { reminderOffsets: [7, 3, 1, 0, -1] }));
+    await assertSucceeds(setDoc(doc(admin, "organizations/org-a/catalogs/permits"), { items: [] }));
+    await assertFails(setDoc(doc(editor, "organizations/org-a/settings/workflow"), { reminderOffsets: [1] }));
+    await assertFails(updateDoc(doc(admin, "organizations/org-a/members/admin-a"), { role: "viewer" }));
   });
 
   it("알림 수신자의 읽음 표시만 허용한다", async () => {
