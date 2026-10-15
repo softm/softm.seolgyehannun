@@ -223,7 +223,7 @@
 .platform-org-table-head,
 .platform-org-table > article {
   display: grid;
-  grid-template-columns: minmax(270px, 1.6fr) minmax(135px, .65fr) minmax(160px, .7fr) minmax(145px, .7fr) minmax(225px, .8fr);
+  grid-template-columns: minmax(260px, 1.45fr) minmax(125px, .6fr) minmax(145px, .65fr) minmax(135px, .65fr) minmax(355px, 1.15fr);
   align-items: center;
   gap: 18px;
 }
@@ -292,7 +292,8 @@
 
 .platform-org-actions button,
 .platform-drawer footer button,
-.platform-confirm-dialog footer button {
+.platform-confirm-dialog footer button,
+.platform-access-dialog footer button {
   min-height: 42px;
   padding: 0 12px;
   display: inline-flex;
@@ -311,12 +312,64 @@
 
 .platform-org-actions button.primary,
 .platform-drawer footer button.primary,
-.platform-confirm-dialog footer button.primary { color: #fff; background: #004541; border-color: #004541; }
+.platform-confirm-dialog footer button.primary,
+.platform-access-dialog footer button.primary { color: #fff; background: #004541; border-color: #004541; }
+.platform-org-actions button.workspace { color: #006c65; background: #e8f8f5; border-color: #aedfd8; }
 .platform-confirm-dialog footer button.danger { color: #fff; background: #b6372c; border-color: #b6372c; }
 .platform-org-actions button:hover { border-color: #007c72; }
 .platform-org-actions button:disabled,
 .platform-drawer footer button:disabled,
-.platform-confirm-dialog footer button:disabled { opacity: .5; cursor: not-allowed; }
+.platform-confirm-dialog footer button:disabled,
+.platform-access-dialog footer button:disabled { opacity: .5; cursor: not-allowed; }
+
+.platform-access-dialog {
+  width: min(600px, 100%);
+  overflow: hidden;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 28px 80px rgba(0, 24, 26, .25);
+}
+
+.platform-access-dialog > header {
+  min-height: 84px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e2e9e8;
+}
+
+.platform-access-dialog > header > span {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #006c65;
+  background: #e3f8f4;
+  border-radius: 12px;
+}
+
+.platform-access-dialog > header > div { min-width: 0; }
+.platform-access-dialog > header p { margin: 0 0 2px; color: #00766d; font-size: 12px; font-weight: 900; }
+.platform-access-dialog > header h2 { margin: 0; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.platform-access-dialog > header > button { width: 44px; height: 44px; margin-left: auto; display: grid; place-items: center; color: #526270; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+.platform-access-dialog > form { padding: 22px; }
+.platform-access-notice { margin: 0 0 18px; color: #536976; font-size: 14px; line-height: 1.65; }
+.platform-access-dialog fieldset { margin: 0; padding: 0; display: grid; gap: 9px; border: 0; }
+.platform-access-dialog legend { margin-bottom: 9px; color: #344b58; font-size: 13px; font-weight: 900; }
+.platform-access-dialog fieldset label { min-height: 72px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; border: 1px solid #d4dede; border-radius: 12px; cursor: pointer; }
+.platform-access-dialog fieldset label.selected { background: #effbf9; border-color: #55b7ad; box-shadow: 0 0 0 2px rgba(0, 118, 109, .08); }
+.platform-access-dialog fieldset label:has(input:focus-visible) { outline: 3px solid rgba(0, 118, 109, .2); outline-offset: 2px; }
+.platform-access-dialog fieldset input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+.platform-access-dialog fieldset label > span { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; color: #006c65; background: #e5f7f4; border-radius: 10px; }
+.platform-access-dialog fieldset label > div { display: grid; gap: 3px; }
+.platform-access-dialog fieldset strong { font-size: 15px; }
+.platform-access-dialog fieldset small { color: #657581; font-size: 12px; line-height: 1.45; }
+.platform-access-warning { min-height: 45px; margin-top: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; color: #9b3f32; background: #fff2ef; border-radius: 10px; font-size: 12px; font-weight: 800; }
+.platform-access-dialog footer { margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px; }
+.platform-access-dialog footer button { min-height: 44px; }
+.platform-access-dialog footer button.primary { min-width: 190px; }
 
 .platform-empty { padding: 36px 22px; color: #7b8895; text-align: center; }
 .platform-payment-list { padding: 0 22px; }
@@ -468,7 +521,9 @@
   .platform-org-actions button { width: 100%; }
   .platform-modal-backdrop { padding: 10px; }
   .platform-drawer footer,
-  .platform-confirm-dialog footer { flex-direction: column-reverse; }
+  .platform-confirm-dialog footer,
+  .platform-access-dialog footer { flex-direction: column-reverse; }
   .platform-drawer footer button,
-  .platform-confirm-dialog footer button { width: 100%; }
+  .platform-confirm-dialog footer button,
+  .platform-access-dialog footer button { width: 100%; }
 }

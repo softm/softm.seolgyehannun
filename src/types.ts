@@ -310,6 +310,15 @@ export interface OrganizationWorkspace {
   subscriptionExpiresAt?: string | null;
 }
 
+export interface PlatformWorkspaceAccess {
+  sessionId: string;
+  organizationId: string;
+  organizationName: string;
+  role: OrganizationRole;
+  startedAt: string | null;
+  expiresAt: string;
+}
+
 export interface AppUser {
   uid: string;
   displayName: string;
@@ -322,6 +331,7 @@ export interface AppUser {
   organizationStatus?: "active" | "suspended";
   subscriptionExpiresAt?: string | null;
   platformRole?: "owner" | "operator" | null;
+  platformWorkspaceAccess?: PlatformWorkspaceAccess | null;
 }
 
 export interface AuditEvent {

@@ -7,10 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppUser, CaseRecord } from "./types";
+import type { AppUser, CaseRecord, OrganizationRole } from "./types";
 import {
   bootstrapUserOrganization,
+  enterPlatformWorkspace,
   endSession,
+  leavePlatformWorkspace,
   observeUser,
   reloadCurrentUser,
   registerWithEmail,
@@ -31,6 +33,8 @@ interface AuthContextValue {
   createOrganization: (name: string) => Promise<void>;
   refreshUser: () => Promise<void>;
   switchOrganization: (organizationId: string) => Promise<void>;
+  enterPlatformWorkspace: (organizationId: string, role: OrganizationRole) => Promise<void>;
+  leavePlatformWorkspace: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -55,7 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     createOrganization: async (name) => setUser(await bootstrapUserOrganization(name)),
     refreshUser: async () => setUser(await reloadCurrentUser()),
     switchOrganization: async (organizationId) => setUser(await switchCurrentOrganization(organizationId)),
+    enterPlatformWorkspace: async (organizationId, role) => setUser(await enterPlatformWorkspace(organizationId, role)),
+    leavePlatformWorkspace: async () => setUser(await leavePlatformWorkspace()),
     logout: async () => {
+      if (user?.platformWorkspaceAccess) {
+        try {
+          await leavePlatformWorkspace();
+        } catch {
+          // The server-side session is short lived and will expire even if cleanup is unavailable.
+        }
+      }
       await endSession();
       setUser(null);
     },
