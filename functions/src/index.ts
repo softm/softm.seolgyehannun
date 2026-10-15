@@ -879,17 +879,28 @@ export const createDeadlineNotifications = onSchedule(
     const today = formatKstDate(now);
     const horizon = formatKstDate(new Date(now.getTime() + 7 * 86_400_000));
     const cases = await db.collectionGroup("cases").where("nextDeadlineAt", "<=", horizon).limit(500).get();
+    const inAppNotificationCache = new Map<string, Promise<boolean>>();
+    const inAppNotificationEnabled = (organizationId: string) => {
+      const cached = inAppNotificationCache.get(organizationId);
+      if (cached) return cached;
+      const request = db.doc(`organizations/${organizationId}/settings/workflow`).get()
+        .then((snapshot) => snapshot.data()?.notificationDefaults?.inAppEnabled !== false)
+        .catch(() => true);
+      inAppNotificationCache.set(organizationId, request);
+      return request;
+    };
     let created = 0;
     for (const caseSnapshot of cases.docs) {
       const data = caseSnapshot.data();
       if (["completed", "stopped"].includes(data.status) || !data.nextDeadlineAt) continue;
+      const organizationId = String(data.organizationId ?? caseSnapshot.ref.parent.parent?.id ?? "");
+      if (!organizationId || !(await inAppNotificationEnabled(organizationId))) continue;
       const due = new Date(`${data.nextDeadlineAt}T00:00:00+09:00`);
       const start = new Date(`${today}T00:00:00+09:00`);
       const distance = Math.round((due.getTime() - start.getTime()) / 86_400_000);
       const offsets: number[] = Array.isArray(data.reminderOffsets) ? data.reminderOffsets : [7, 3, 1, 0, -1];
       const shouldNotify = offsets.includes(distance) || (distance < 0 && offsets.includes(-1));
       if (!shouldNotify) continue;
-      const organizationId = String(data.organizationId ?? caseSnapshot.ref.parent.parent?.id ?? "");
       const notificationId = sha256(`${organizationId}:${caseSnapshot.id}:${data.nextDeadlineAt}:${distance < 0 ? "late" : distance}`).slice(0, 32);
       const notificationRef = caseSnapshot.ref.collection("notifications").doc(notificationId);
       const wasCreated = await db.runTransaction(async (transaction) => {
