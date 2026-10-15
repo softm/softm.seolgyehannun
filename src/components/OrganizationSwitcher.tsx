@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Building2, Check, ChevronDown, LoaderCircle } from "lucide-react";
+import { Building2, Check, ChevronDown, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context";
 import type { OrganizationWorkspace } from "../types";
@@ -34,6 +34,18 @@ export function OrganizationSwitcher() {
     } finally {
       setPendingId("");
     }
+  }
+
+  if (user?.platformWorkspaceAccess) {
+    return (
+      <div className="workspace-switcher">
+        <div className="organization-switcher platform-delegated-switcher" aria-label={`${user.organizationName} 사이트 관리자 대리 접속, ${roleLabels[user.role]} 권한`}>
+          <span className="organization-icon">{user.organizationName.slice(0, 1) || "한"}</span>
+          <span><strong>{user.organizationName}</strong><small>대리 접속 · {roleLabels[user.role]}</small></span>
+          <ShieldCheck size={17} />
+        </div>
+      </div>
+    );
   }
 
   return (

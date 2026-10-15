@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Bell,
   ChevronDown,
   CircleHelp,
   FileStack,
   FolderKanban,
   LayoutDashboard,
+  LoaderCircle,
   LogOut,
   Menu,
   Settings,
@@ -23,6 +25,7 @@ import {
 } from "../services/notificationRepository";
 import { Brand } from "./Brand";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
+import "../platform-workspace.css";
 
 const navigation = [
   { to: "/app", end: true, label: "대시보드", icon: LayoutDashboard },
@@ -33,13 +36,15 @@ const navigation = [
 ];
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, leavePlatformWorkspace } = useAuth();
   const { cases, selectCase } = useCases();
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [leavingWorkspace, setLeavingWorkspace] = useState(false);
+  const [workspaceAccessError, setWorkspaceAccessError] = useState("");
 
   const demoNotifications = useMemo<InAppNotification[]>(() => cases
     .filter((caseRecord) => caseRecord.nextDeadlineAt && deadlineDistance(caseRecord.nextDeadlineAt) <= 3 && caseRecord.status !== "completed")
@@ -80,6 +85,19 @@ export function AppLayout() {
   async function handleLogout() {
     await logout();
     navigate("/login");
+  }
+
+  async function handleLeavePlatformWorkspace() {
+    setLeavingWorkspace(true);
+    setWorkspaceAccessError("");
+    try {
+      await leavePlatformWorkspace();
+      navigate("/site-admin");
+    } catch (reason) {
+      setWorkspaceAccessError(reason instanceof Error ? reason.message : "대리 접속을 종료하지 못했습니다.");
+    } finally {
+      setLeavingWorkspace(false);
+    }
   }
 
   async function openNotification(notification: InAppNotification) {
@@ -149,6 +167,20 @@ export function AppLayout() {
             )}
           </div>
         </header>
+        {user?.platformWorkspaceAccess && (
+          <section className="platform-workspace-banner" aria-label="사이트 관리자 대리 접속 중">
+            <ShieldCheck size={20} />
+            <div>
+              <strong>사이트 관리자 대리 접속</strong>
+              <span>{user.organizationName} · {user.role === "admin" ? "관리자" : user.role === "editor" ? "편집자" : "열람자"} 권한</span>
+            </div>
+            <time dateTime={user.platformWorkspaceAccess.expiresAt}>접속 만료 {new Date(user.platformWorkspaceAccess.expiresAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</time>
+            <button type="button" onClick={() => void handleLeavePlatformWorkspace()} disabled={leavingWorkspace}>
+              {leavingWorkspace ? <LoaderCircle className="spin" size={17} /> : <ArrowLeft size={17} />} 사이트 관리로 돌아가기
+            </button>
+          </section>
+        )}
+        {workspaceAccessError && <div className="platform-workspace-error" role="alert">{workspaceAccessError}</div>}
         <main className="app-main"><Outlet /></main>
       </div>
     </div>
