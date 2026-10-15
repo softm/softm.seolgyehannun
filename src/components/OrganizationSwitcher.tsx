@@ -49,7 +49,7 @@ export function OrganizationSwitcher() {
           <div role="menu">
             {organizations.map((organization) => {
               const current = organization.id === user?.organizationId;
-              return <button type="button" role="menuitem" aria-label={`${organization.name}, ${roleLabels[organization.role]}${current ? ", 현재 업무공간" : ""}`} key={organization.id} className={current ? "current" : ""} onClick={() => void selectWorkspace(organization.id)} disabled={Boolean(pendingId)}><span>{organization.name.slice(0, 1)}</span><div><strong>{organization.name}</strong><small>{roleLabels[organization.role]}</small></div>{pendingId === organization.id ? <LoaderCircle className="spin" size={16} /> : current ? <Check size={16} /> : null}</button>;
+              return <button type="button" role="menuitem" aria-label={`${organization.name}, ${roleLabels[organization.role]}${organization.status === "suspended" ? ", 이용 정지" : ""}${current ? ", 현재 업무공간" : ""}`} key={organization.id} className={current ? "current" : ""} onClick={() => void selectWorkspace(organization.id)} disabled={Boolean(pendingId)}><span>{organization.name.slice(0, 1)}</span><div><strong>{organization.name}</strong><small>{roleLabels[organization.role]}{organization.status === "suspended" ? " · 이용 정지" : ""}</small></div>{pendingId === organization.id ? <LoaderCircle className="spin" size={16} /> : current ? <Check size={16} /> : null}</button>;
             })}
           </div>
           {error && <p role="alert">{error}</p>}

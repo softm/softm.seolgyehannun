@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShieldCheck,
   Users,
   X,
 } from "lucide-react";
@@ -112,6 +113,7 @@ export function AppLayout() {
               <Icon size={19} /> {label}
             </NavLink>
           ))}
+          {user?.platformRole && <><small>사이트 운영</small><NavLink to="/site-admin" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={19} /> 전체 관리자</NavLink></>}
         </nav>
         <div className="sidebar-foot">
           <button type="button"><CircleHelp size={18} /> 도움말</button>
@@ -140,6 +142,7 @@ export function AppLayout() {
             {userMenuOpen && (
               <div className="user-dropdown">
                 <div><strong>{user?.displayName}</strong><small>{user?.email}</small></div>
+                {user?.platformRole && <NavLink to="/site-admin" onClick={() => setUserMenuOpen(false)}><ShieldCheck size={17} /> 사이트 관리</NavLink>}
                 <NavLink to="/app/settings" onClick={() => setUserMenuOpen(false)}><Settings size={17} /> 설정</NavLink>
                 <button type="button" onClick={handleLogout}><LogOut size={17} /> 로그아웃</button>
               </div>
