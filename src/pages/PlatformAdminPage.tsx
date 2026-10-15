@@ -6,8 +6,11 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  Eye,
   LoaderCircle,
+  LogIn,
   LogOut,
+  PencilLine,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -19,6 +22,7 @@ import { type SubmitEvent as ReactSubmitEvent, useCallback, useEffect, useMemo, 
 import { useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
 import { useAuth } from "../context";
+import type { OrganizationRole } from "../types";
 import {
   confirmPlatformPayment,
   getPlatformAdminDashboard,
@@ -37,6 +41,12 @@ const statusLabels: Record<PlatformServiceStatus, string> = {
   suspended: "이용 정지",
   unconfigured: "기간 미설정",
 };
+
+const workspaceRoleOptions: Array<{ value: OrganizationRole; label: string; description: string }> = [
+  { value: "viewer", label: "열람자", description: "업무와 문서를 조회하고 다운로드합니다." },
+  { value: "editor", label: "편집자", description: "업무·필지·문서를 작성하고 수정합니다." },
+  { value: "admin", label: "관리자", description: "구성원과 조직 설정까지 관리합니다." },
+];
 
 function koreanDate(value: string | null): string {
   if (!value) return "미설정";
@@ -71,7 +81,7 @@ function paymentPreview(organization: PlatformOrganizationSummary, months: numbe
 }
 
 export function PlatformAdminPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, enterPlatformWorkspace } = useAuth();
   const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<PlatformDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +92,8 @@ export function PlatformAdminPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | PlatformServiceStatus>("all");
   const [paymentTarget, setPaymentTarget] = useState<PlatformOrganizationSummary | null>(null);
   const [statusTarget, setStatusTarget] = useState<PlatformOrganizationSummary | null>(null);
+  const [workspaceTarget, setWorkspaceTarget] = useState<PlatformOrganizationSummary | null>(null);
+  const [workspaceRole, setWorkspaceRole] = useState<OrganizationRole>("viewer");
   const [pending, setPending] = useState(false);
   const [amount, setAmount] = useState("");
   const [months, setMonths] = useState(1);
@@ -135,6 +147,29 @@ export function PlatformAdminPage() {
     setPaymentNote("");
     setMessage("");
     setError("");
+  }
+
+  function openWorkspace(organization: PlatformOrganizationSummary) {
+    setWorkspaceTarget(organization);
+    setWorkspaceRole("viewer");
+    setMessage("");
+    setError("");
+  }
+
+  async function enterWorkspace(event: ReactSubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceTarget) return;
+    setPending(true);
+    setError("");
+    try {
+      await enterPlatformWorkspace(workspaceTarget.id, workspaceRole);
+      navigate("/app");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "설계사무소 업무공간에 접속하지 못했습니다.");
+      setWorkspaceTarget(null);
+    } finally {
+      setPending(false);
+    }
   }
 
   async function submitPayment(event: ReactSubmitEvent<HTMLFormElement>) {
@@ -237,6 +272,7 @@ export function PlatformAdminPage() {
                 <div className="platform-org-counts" role="cell"><span><Users size={15} /> {organization.memberCount}명</span><span><Building2 size={15} /> 업무 {organization.caseCount}건</span></div>
                 <div className="platform-org-expiry" role="cell"><strong>{koreanDate(organization.expiresAt)}</strong><small>가입 {koreanDate(organization.createdAt)}</small></div>
                 <div className="platform-org-actions" role="cell">
+                  <button type="button" className="workspace" onClick={() => openWorkspace(organization)} disabled={organization.serviceStatus === "suspended" || organization.serviceStatus === "expired"} title={organization.serviceStatus === "suspended" || organization.serviceStatus === "expired" ? "이용 재개 또는 기간 연장 후 접속할 수 있습니다." : undefined}><LogIn size={16} /> 업무공간 접속</button>
                   <button type="button" className="primary" onClick={() => openPayment(organization)}><Banknote size={16} /> 입금 확인</button>
                   <button type="button" onClick={() => { setStatusTarget(organization); setSuspensionReason(""); setError(""); }}>{organization.platformStatus === "suspended" ? <ShieldCheck size={16} /> : <ShieldOff size={16} />}{organization.platformStatus === "suspended" ? "재개" : "정지"}</button>
                 </div>
@@ -252,6 +288,16 @@ export function PlatformAdminPage() {
           </div>
         </section>
       </main>
+
+      {workspaceTarget && <div className="platform-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) setWorkspaceTarget(null); }}><section className="platform-access-dialog" role="dialog" aria-modal="true" aria-labelledby="workspace-dialog-title"><header><span><LogIn /></span><div><p>사이트 관리자 대리 접속</p><h2 id="workspace-dialog-title">{workspaceTarget.name}</h2></div><button type="button" aria-label="닫기" onClick={() => setWorkspaceTarget(null)} disabled={pending}><X /></button></header><form onSubmit={enterWorkspace}>
+        <p className="platform-access-notice">실제 구성원 계정이나 권한은 변경하지 않습니다. 선택한 권한으로 최대 2시간 접속하며 시작·종료 이력이 기록됩니다.</p>
+        <fieldset><legend>접속 권한 선택</legend>{workspaceRoleOptions.map((option) => {
+          const Icon = option.value === "admin" ? ShieldCheck : option.value === "editor" ? PencilLine : Eye;
+          return <label className={workspaceRole === option.value ? "selected" : ""} key={option.value}><input type="radio" name="workspaceRole" value={option.value} checked={workspaceRole === option.value} onChange={() => setWorkspaceRole(option.value)} autoFocus={option.value === "viewer"} /><span><Icon size={19} /></span><div><strong>{option.label}</strong><small>{option.description}</small></div></label>;
+        })}</fieldset>
+        {workspaceRole === "admin" && <div className="platform-access-warning"><ShieldOff size={17} /> 구성원 권한과 조직 설정을 변경할 수 있는 강한 권한입니다.</div>}
+        <footer><button type="button" onClick={() => setWorkspaceTarget(null)} disabled={pending}>취소</button><button type="submit" className="primary" disabled={pending}>{pending ? <LoaderCircle className="spin" /> : <LogIn />} {workspaceRoleOptions.find((option) => option.value === workspaceRole)?.label} 권한으로 접속</button></footer>
+      </form></section></div>}
 
       {paymentTarget && <div className="platform-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) setPaymentTarget(null); }}><aside className="platform-drawer" role="dialog" aria-modal="true" aria-labelledby="payment-dialog-title"><header><div><span><Banknote /></span><div><p>수동 입금 확인</p><h2 id="payment-dialog-title">{paymentTarget.name}</h2></div></div><button type="button" aria-label="닫기" onClick={() => setPaymentTarget(null)} disabled={pending}><X /></button></header><form onSubmit={submitPayment}>
         <div className="platform-current-period"><span>현재 이용 만료일</span><strong>{koreanDate(paymentTarget.expiresAt)}</strong></div>
