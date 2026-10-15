@@ -1,4 +1,5 @@
 import { httpsCallable } from "firebase/functions";
+import type { OrganizationRole, PlatformWorkspaceAccess } from "../types";
 import { getFirebaseServices } from "./firebase";
 
 export type PlatformAdminRole = "owner" | "operator";
@@ -8,6 +9,7 @@ export interface PlatformAdminAccess {
   isPlatformAdmin: boolean;
   role: PlatformAdminRole | null;
   email: string | null;
+  workspaceAccess: PlatformWorkspaceAccess | null;
 }
 
 export interface PlatformOrganizationSummary {
@@ -79,6 +81,22 @@ export async function getPlatformAdminAccess(): Promise<PlatformAdminAccess> {
 export async function getPlatformAdminDashboard(): Promise<PlatformDashboardData> {
   const callable = httpsCallable<void, PlatformDashboardData>(functionsService(), "getPlatformAdminDashboard");
   return (await callable()).data;
+}
+
+export async function startPlatformWorkspaceAccess(
+  organizationId: string,
+  role: OrganizationRole,
+): Promise<PlatformWorkspaceAccess> {
+  const callable = httpsCallable<
+    { organizationId: string; role: OrganizationRole },
+    { workspaceAccess: PlatformWorkspaceAccess }
+  >(functionsService(), "startPlatformWorkspaceAccess");
+  return (await callable({ organizationId, role })).data.workspaceAccess;
+}
+
+export async function endPlatformWorkspaceAccess(): Promise<boolean> {
+  const callable = httpsCallable<void, { ended: boolean }>(functionsService(), "endPlatformWorkspaceAccess");
+  return (await callable()).data.ended;
 }
 
 export async function confirmPlatformPayment(input: ConfirmPlatformPaymentInput): Promise<ConfirmPlatformPaymentResult> {

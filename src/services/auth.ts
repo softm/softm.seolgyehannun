@@ -13,18 +13,25 @@ import { httpsCallable } from "firebase/functions";
 import { demoUser } from "../data/demo";
 import type { AppUser, OrganizationRole, OrganizationWorkspace } from "../types";
 import { firebaseConfigured, getFirebaseServices } from "./firebase";
-import { getPlatformAdminAccess } from "./platformAdminRepository";
+import {
+  endPlatformWorkspaceAccess,
+  getPlatformAdminAccess,
+  startPlatformWorkspaceAccess,
+} from "./platformAdminRepository";
 
 const demoSessionKey = "seolgye-hannun.demo-session";
 
 async function mapFirebaseUser(user: User): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) throw new Error("Firebase가 설정되지 않았습니다.");
-  const organizationsPromise = listCurrentUserOrganizations().catch(() => null);
-  const platformAccessPromise = getPlatformAdminAccess().catch(() => null);
-  const profileSnapshot = await getDoc(doc(services.db, "users", user.uid));
+  const [profileSnapshot, listedOrganizations, platformAccess] = await Promise.all([
+    getDoc(doc(services.db, "users", user.uid)),
+    listCurrentUserOrganizations().catch(() => null),
+    getPlatformAdminAccess().catch(() => null),
+  ]);
   const profile = profileSnapshot.data() ?? {};
-  const organizationId = String(profile.defaultOrganizationId ?? "");
+  const workspaceAccess = platformAccess?.workspaceAccess ?? null;
+  const organizationId = workspaceAccess?.organizationId ?? String(profile.defaultOrganizationId ?? "");
   let organizationName = "조직 선택 필요";
   let role: OrganizationRole = "viewer";
   let organizationStatus: "active" | "suspended" = "active";
@@ -33,23 +40,22 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
   if (organizationId) {
     const [organization, membership] = await Promise.all([
       getDoc(doc(services.db, "organizations", organizationId)),
-      getDoc(doc(services.db, "organizations", organizationId, "members", user.uid)),
+      workspaceAccess ? Promise.resolve(null) : getDoc(doc(services.db, "organizations", organizationId, "members", user.uid)),
     ]);
     const organizationData = organization.data() ?? {};
-    organizationName = String(organizationData.name ?? organizationName);
+    organizationName = workspaceAccess?.organizationName ?? String(organizationData.name ?? organizationName);
     const expiry = organizationData.subscription?.expiresAt;
     subscriptionExpiresAt = typeof expiry?.toDate === "function" ? expiry.toDate().toISOString() : null;
     organizationStatus = organizationData.platformStatus === "suspended"
       || (subscriptionExpiresAt ? new Date(subscriptionExpiresAt).getTime() < Date.now() : false)
       ? "suspended"
       : "active";
-    role = (membership.data()?.role as OrganizationRole | undefined) ?? role;
+    role = workspaceAccess?.role ?? (membership?.data()?.role as OrganizationRole | undefined) ?? role;
   }
 
   let organizations: OrganizationWorkspace[] = organizationId
     ? [{ id: organizationId, name: organizationName, role, status: organizationStatus, subscriptionExpiresAt }]
     : [];
-  const [listedOrganizations, platformAccess] = await Promise.all([organizationsPromise, platformAccessPromise]);
   if (listedOrganizations) organizations = listedOrganizations;
   const platformRole = platformAccess?.isPlatformAdmin ? platformAccess.role : null;
 
@@ -65,6 +71,7 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
     organizationStatus,
     subscriptionExpiresAt,
     platformRole,
+    platformWorkspaceAccess: workspaceAccess,
   };
 }
 
@@ -94,6 +101,24 @@ export async function reloadCurrentUser(): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services?.auth.currentUser) throw new Error("로그인이 필요합니다.");
   return mapFirebaseUser(services.auth.currentUser);
+}
+
+export async function enterPlatformWorkspace(organizationId: string, role: OrganizationRole): Promise<AppUser> {
+  const services = getFirebaseServices();
+  const currentUser = services?.auth.currentUser;
+  if (!services || !currentUser) throw new Error("로그인이 필요합니다.");
+  await startPlatformWorkspaceAccess(organizationId, role);
+  await currentUser.getIdToken(true);
+  return mapFirebaseUser(currentUser);
+}
+
+export async function leavePlatformWorkspace(): Promise<AppUser> {
+  const services = getFirebaseServices();
+  const currentUser = services?.auth.currentUser;
+  if (!services || !currentUser) throw new Error("로그인이 필요합니다.");
+  await endPlatformWorkspaceAccess();
+  await currentUser.getIdToken(true);
+  return mapFirebaseUser(currentUser);
 }
 
 export function observeUser(callback: (user: AppUser | null) => void): () => void {
