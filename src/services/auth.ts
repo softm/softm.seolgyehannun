@@ -13,35 +13,45 @@ import { httpsCallable } from "firebase/functions";
 import { demoUser } from "../data/demo";
 import type { AppUser, OrganizationRole, OrganizationWorkspace } from "../types";
 import { firebaseConfigured, getFirebaseServices } from "./firebase";
+import { getPlatformAdminAccess } from "./platformAdminRepository";
 
 const demoSessionKey = "seolgye-hannun.demo-session";
 
 async function mapFirebaseUser(user: User): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) throw new Error("Firebase가 설정되지 않았습니다.");
+  const organizationsPromise = listCurrentUserOrganizations().catch(() => null);
+  const platformAccessPromise = getPlatformAdminAccess().catch(() => null);
   const profileSnapshot = await getDoc(doc(services.db, "users", user.uid));
   const profile = profileSnapshot.data() ?? {};
   const organizationId = String(profile.defaultOrganizationId ?? "");
   let organizationName = "조직 선택 필요";
   let role: OrganizationRole = "viewer";
+  let organizationStatus: "active" | "suspended" = "active";
+  let subscriptionExpiresAt: string | null = null;
 
   if (organizationId) {
     const [organization, membership] = await Promise.all([
       getDoc(doc(services.db, "organizations", organizationId)),
       getDoc(doc(services.db, "organizations", organizationId, "members", user.uid)),
     ]);
-    organizationName = String(organization.data()?.name ?? organizationName);
+    const organizationData = organization.data() ?? {};
+    organizationName = String(organizationData.name ?? organizationName);
+    const expiry = organizationData.subscription?.expiresAt;
+    subscriptionExpiresAt = typeof expiry?.toDate === "function" ? expiry.toDate().toISOString() : null;
+    organizationStatus = organizationData.platformStatus === "suspended"
+      || (subscriptionExpiresAt ? new Date(subscriptionExpiresAt).getTime() < Date.now() : false)
+      ? "suspended"
+      : "active";
     role = (membership.data()?.role as OrganizationRole | undefined) ?? role;
   }
 
   let organizations: OrganizationWorkspace[] = organizationId
-    ? [{ id: organizationId, name: organizationName, role }]
+    ? [{ id: organizationId, name: organizationName, role, status: organizationStatus, subscriptionExpiresAt }]
     : [];
-  try {
-    organizations = await listCurrentUserOrganizations();
-  } catch {
-    // Keep the current organization usable while an older Functions deployment is being upgraded.
-  }
+  const [listedOrganizations, platformAccess] = await Promise.all([organizationsPromise, platformAccessPromise]);
+  if (listedOrganizations) organizations = listedOrganizations;
+  const platformRole = platformAccess?.isPlatformAdmin ? platformAccess.role : null;
 
   return {
     uid: user.uid,
@@ -52,6 +62,9 @@ async function mapFirebaseUser(user: User): Promise<AppUser> {
     role,
     isDemo: false,
     organizations,
+    organizationStatus,
+    subscriptionExpiresAt,
+    platformRole,
   };
 }
 
