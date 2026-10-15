@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   addCalendarMonths,
+  calculatePlatformWorkspaceExpiry,
   calculateSubscriptionExtension,
   classifyOrganizationStatus,
   normalizeAdminEmails,
+  normalizePlatformWorkspaceRole,
 } from "../../functions/src/platformAdminCore";
 
 describe("사이트 관리자 이용기간", () => {
@@ -37,5 +39,14 @@ describe("사이트 관리자 이용기간", () => {
     expect(classifyOrganizationStatus({ expiresAt: new Date("2026-11-01T00:00:00.000Z"), now })).toBe("expiring");
     expect(classifyOrganizationStatus({ expiresAt: new Date("2027-01-01T00:00:00.000Z"), now })).toBe("active");
     expect(classifyOrganizationStatus({ now })).toBe("unconfigured");
+  });
+
+  it("대리 접속 권한을 제한하고 2시간 또는 이용 만료일 중 이른 시각에 끝낸다", () => {
+    const now = new Date("2026-10-16T01:00:00.000Z");
+    expect(normalizePlatformWorkspaceRole("viewer")).toBe("viewer");
+    expect(normalizePlatformWorkspaceRole("owner")).toBeNull();
+    expect(calculatePlatformWorkspaceExpiry(now).toISOString()).toBe("2026-10-16T03:00:00.000Z");
+    expect(calculatePlatformWorkspaceExpiry(now, new Date("2026-10-16T02:15:00.000Z")).toISOString())
+      .toBe("2026-10-16T02:15:00.000Z");
   });
 });

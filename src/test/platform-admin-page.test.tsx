@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformDashboardData } from "../services/platformAdminRepository";
 
 const getDashboard = vi.fn();
 const confirmPayment = vi.fn();
 const updateStatus = vi.fn();
+const enterWorkspace = vi.fn();
 
 vi.mock("../context", () => ({
   useAuth: () => ({
@@ -17,6 +18,7 @@ vi.mock("../context", () => ({
       platformRole: "owner",
     },
     logout: vi.fn(),
+    enterPlatformWorkspace: (...args: unknown[]) => enterWorkspace(...args),
   }),
 }));
 
@@ -56,6 +58,8 @@ const dashboard: PlatformDashboardData = {
 };
 
 describe("사이트 전체 관리자", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     getDashboard.mockReset().mockResolvedValue(dashboard);
     confirmPayment.mockReset().mockResolvedValue({
@@ -64,6 +68,7 @@ describe("사이트 전체 관리자", () => {
       extendedExpiresAt: "2027-01-31T00:00:00.000Z",
     });
     updateStatus.mockReset().mockResolvedValue(undefined);
+    enterWorkspace.mockReset().mockResolvedValue(undefined);
   });
 
   it("가입 사무소 현황을 표시하고 입금 확인으로 이용기간을 연장한다", async () => {
@@ -85,5 +90,17 @@ describe("사이트 전체 관리자", () => {
       months: 3,
     })));
     expect(await screen.findByText(/2027\. 1\. 31\.까지 연장했습니다/)).toBeInTheDocument();
+  });
+
+  it("설계사무소와 권한을 선택해 대리 접속한다", async () => {
+    render(<MemoryRouter><PlatformAdminPage /></MemoryRouter>);
+
+    expect(await screen.findByText("한눈 설계사무소")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "업무공간 접속" }));
+    expect(screen.getByRole("dialog", { name: "한눈 설계사무소" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /관리자/ }));
+    fireEvent.click(screen.getByRole("button", { name: /관리자 권한으로 접속/ }));
+
+    await waitFor(() => expect(enterWorkspace).toHaveBeenCalledWith("org-1", "admin"));
   });
 });
