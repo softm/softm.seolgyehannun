@@ -11,8 +11,14 @@ service firebase.storage {
     }
 
     function isMember(orgId) {
+      let organization = firestore.get(/databases/(default)/documents/organizations/$(orgId)).data;
       return signedIn()
-        && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+        && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && (!('status' in membership(orgId).data) || membership(orgId).data.status == 'active')
+        && (!('platformStatus' in organization) || organization.platformStatus != 'suspended')
+        && (!('subscription' in organization)
+          || !('expiresAt' in organization.subscription)
+          || organization.subscription.expiresAt >= request.time);
     }
 
     function canEdit(orgId) {

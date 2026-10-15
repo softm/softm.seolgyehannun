@@ -10,10 +10,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
-    function isMember(orgId) {
+    function isMembershipActive(orgId) {
       return signedIn()
         && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
         && (!('status' in membership(orgId).data) || membership(orgId).data.status == 'active');
+    }
+
+    function isOrganizationEnabled(orgId) {
+      let organization = get(/databases/$(database)/documents/organizations/$(orgId)).data;
+      return (!('platformStatus' in organization) || organization.platformStatus != 'suspended')
+        && (!('subscription' in organization)
+          || !('expiresAt' in organization.subscription)
+          || organization.subscription.expiresAt >= request.time);
+    }
+
+    function isMember(orgId) {
+      return isMembershipActive(orgId) && isOrganizationEnabled(orgId);
     }
 
     function hasRole(orgId, roles) {
@@ -36,12 +48,13 @@ service cloud.firestore {
 
     match /organizations/{orgId} {
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read: if isMember(orgId);
+      allow read: if isMembershipActive(orgId);
       allow update: if isAdmin(orgId);
       allow delete: if false;
 
       match /members/{memberId} {
-        allow read: if isMember(orgId);
+        allow read: if isMember(orgId)
+          || (signedIn() && memberId == request.auth.uid && isMembershipActive(orgId));
         allow create: if isAdmin(orgId) && memberId != request.auth.uid;
         allow update, delete: if isAdmin(orgId) && memberId != request.auth.uid;
       }
