@@ -59,6 +59,14 @@ import { emptyBuildingPlan, emptyPermitForm, emptyProjectPlanDetails, normalizeC
 import { selectedRequiredDocuments } from "../domain/documentTemplates";
 import { sampleParcels } from "../data/demo";
 import { regionProfileFor } from "../data/regionProfiles";
+import {
+  createOrganizationDefaultDeadline,
+  defaultDeadlineDefaults,
+  defaultNotificationDefaults,
+  defaultRegionProfiles,
+  type OrganizationDeadlineDefaults,
+  type OrganizationRegionProfileRecord,
+} from "../domain/organizationAdmin";
 import { reverseGeocodeVWorld, searchVWorld, lookupParcel, type VWorldSearchResult } from "../services/vworld";
 import { createReceiptLookupProvider, manualReceipt, type ReceiptLookupResult } from "../services/receipt";
 import { uploadCaseAttachment } from "../services/storage";
@@ -186,6 +194,9 @@ export function NewCaseWizard() {
     reminderOffsets: [7, 3, 1, 0, -1],
     customStatuses: [],
     customPermits: [],
+    deadlineDefaults: defaultDeadlineDefaults,
+    notificationDefaults: defaultNotificationDefaults,
+    regionProfiles: defaultRegionProfiles,
   });
   const saveTimer = useRef<number | null>(null);
 
@@ -358,7 +369,7 @@ export function NewCaseWizard() {
 
         {errors.length > 0 && <div className="wizard-errors" role="alert"><CircleAlert size={19} /><div><strong>확인이 필요합니다</strong>{errors.map((error) => <span key={error}>{error}</span>)}</div></div>}
 
-        {step === 1 && <div className="registration-step"><BasicStep caseRecord={caseRecord} patchCase={patchCase} /><ParcelStep caseRecord={caseRecord} patchCase={patchCase} /></div>}
+        {step === 1 && <div className="registration-step"><BasicStep caseRecord={caseRecord} patchCase={patchCase} deadlineDefaults={organizationConfiguration.deadlineDefaults ?? defaultDeadlineDefaults} reminderOffsets={organizationConfiguration.reminderOffsets} /><ParcelStep caseRecord={caseRecord} patchCase={patchCase} regionProfiles={organizationConfiguration.regionProfiles ?? defaultRegionProfiles} /></div>}
         {step === 2 && <PermitStep caseRecord={caseRecord} patchCase={patchCase} catalog={permitCatalog} mode="primary" />}
         {step === 3 && <PermitStep caseRecord={caseRecord} patchCase={patchCase} catalog={permitCatalog} mode="related" />}
         {step === 4 && <AttachmentStep caseRecord={caseRecord} files={pendingFiles} setFiles={setPendingFiles} />}
@@ -397,7 +408,31 @@ interface PermitStepProps extends StepProps {
   mode: "primary" | "related";
 }
 
-function ParcelStep({ caseRecord, patchCase }: StepProps) {
+interface ParcelStepProps extends StepProps {
+  regionProfiles: OrganizationRegionProfileRecord[];
+}
+
+function organizationRegionProfileFor(
+  jurisdictionCode: string,
+  jurisdictionName: string,
+  profiles: OrganizationRegionProfileRecord[],
+) {
+  const configured = profiles.find((profile) => profile.jurisdictionCode === jurisdictionCode);
+  if (!configured) return regionProfileFor(jurisdictionCode, jurisdictionName);
+  return {
+    id: configured.id,
+    jurisdictionCode: configured.jurisdictionCode,
+    jurisdictionName: configured.jurisdictionName,
+    status: configured.status,
+    effectiveDate: configured.effectiveDate,
+    checkedAt: configured.checkedAt,
+    sources: configured.sourceUrl ? [{ label: configured.sourceLabel, url: configured.sourceUrl }] : [],
+    guidance: configured.guidance,
+    legalAutomationAllowed: configured.legalAutomationAllowed,
+  };
+}
+
+function ParcelStep({ caseRecord, patchCase, regionProfiles }: ParcelStepProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<VWorldSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -659,7 +694,9 @@ function ParcelStep({ caseRecord, patchCase }: StepProps) {
     );
   }
 
-  const profile = caseRecord.parcels[0] ? regionProfileFor(caseRecord.parcels[0].jurisdictionCode, caseRecord.parcels[0].jurisdictionName) : null;
+  const profile = caseRecord.parcels[0]
+    ? organizationRegionProfileFor(caseRecord.parcels[0].jurisdictionCode, caseRecord.parcels[0].jurisdictionName, regionProfiles)
+    : null;
 
   return (
     <div className="parcel-step step-grid">
@@ -775,7 +812,12 @@ function PermitStep({ caseRecord, patchCase, catalog, mode }: PermitStepProps) {
   );
 }
 
-function BasicStep({ caseRecord, patchCase }: StepProps) {
+interface BasicStepProps extends StepProps {
+  deadlineDefaults: OrganizationDeadlineDefaults;
+  reminderOffsets: number[];
+}
+
+function BasicStep({ caseRecord, patchCase, deadlineDefaults, reminderOffsets }: BasicStepProps) {
   const [receiptNumber, setReceiptNumber] = useState("");
   const [receiptAgency, setReceiptAgency] = useState(caseRecord.parcels[0]?.jurisdictionName ?? "");
   const [lookupResult, setLookupResult] = useState<ReceiptLookupResult | null>(null);
@@ -817,7 +859,21 @@ function BasicStep({ caseRecord, patchCase }: StepProps) {
 
   function addManualReceipt() {
     if (!receiptNumber.trim() || !receiptAgency.trim()) return;
-    patchCase({ receipts: [...caseRecord.receipts, manualReceipt(receiptNumber.trim(), receiptAgency.trim(), caseRecord.permits.map((permit) => permit.id))] });
+    const receipt = manualReceipt(receiptNumber.trim(), receiptAgency.trim(), caseRecord.permits.map((permit) => permit.id));
+    const startAt = formatSeoulDate(new Date(receipt.receivedAt));
+    const deadline = createOrganizationDefaultDeadline(
+      receipt.id,
+      startAt,
+      `${receipt.agency} 예상 처리기한`,
+      deadlineDefaults,
+      reminderOffsets,
+    );
+    const deadlines = [...caseRecord.deadlines, deadline];
+    patchCase({
+      receipts: [...caseRecord.receipts, receipt],
+      deadlines,
+      nextDeadlineAt: deadlines.filter((item) => !item.completedAt).map((item) => item.dueAt).sort()[0],
+    });
     setReceiptNumber("");
     setLookupResult(null);
   }
