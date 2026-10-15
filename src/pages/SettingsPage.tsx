@@ -281,6 +281,8 @@ export function SettingsPage() {
           <div className="settings-section-head"><span><Building2 /></span><div><h2>업무공간 정보</h2><p>구성원에게 표시되는 조직 이름입니다.</p></div></div>
           <label className="admin-field">업무공간 이름<input value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} maxLength={80} disabled={!admin} /></label>
           <div className="admin-readonly-row"><span>조직 식별자</span><code>{user?.organizationId}</code></div>
+          <div className="admin-readonly-row"><span>서비스 이용기간</span><strong>{user?.subscriptionExpiresAt ? `${new Date(user.subscriptionExpiresAt).toLocaleDateString("ko-KR")}까지` : "기간 미설정"}</strong></div>
+          <p className="setting-help">이용기간과 입금 확인은 설계한눈 사이트 관리자가 관리합니다.</p>
         </section>
 
         <section className="settings-section admin-card">
