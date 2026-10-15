@@ -16,6 +16,7 @@ import { HttpsError, onCall, onRequest, type CallableRequest, type Request, type
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions";
+import { createPlatformAdminFunctions } from "./platformAdmin.js";
 import { copyAllowedVWorldQuery } from "./vworldProxy.js";
 
 initializeApp();
@@ -27,6 +28,7 @@ const vworldApiKey = defineSecret("VWORLD_API_KEY");
 const vworldDomain = defineString("VWORLD_DOMAIN", { default: "localhost" });
 const allowedOrigins = defineString("ALLOWED_ORIGINS", { default: "http://localhost:5173,http://127.0.0.1:5173" });
 const enforceAppCheck = defineBoolean("ENFORCE_APP_CHECK", { default: false });
+const platformAdminEmails = defineString("PLATFORM_ADMIN_EMAILS", { default: "" });
 
 const ALLOWED_VWORLD_SERVICES = new Set(["search", "address", "data", "wms"]);
 const ALLOWED_NED_OPERATIONS = new Set([
@@ -243,16 +245,37 @@ export const api = onRequest(
 
 async function requireRole(request: CallableRequest, organizationId: string, roles: string[]): Promise<void> {
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  const membership = await db.doc(`organizations/${organizationId}/members/${request.auth.uid}`).get();
-  if (!membership.exists || !roles.includes(String(membership.data()?.role))) {
+  const [membership, organization] = await Promise.all([
+    db.doc(`organizations/${organizationId}/members/${request.auth.uid}`).get(),
+    db.doc(`organizations/${organizationId}`).get(),
+  ]);
+  if (organization.data()?.platformStatus === "suspended") {
+    throw new HttpsError("failed-precondition", "이 설계사무소의 서비스 이용이 정지되었습니다.");
+  }
+  const expiresAt = organization.data()?.subscription?.expiresAt;
+  if (typeof expiresAt?.toMillis === "function" && expiresAt.toMillis() < Date.now()) {
+    throw new HttpsError("failed-precondition", "이 설계사무소의 서비스 이용기간이 만료되었습니다.");
+  }
+  if (!membership.exists || membership.data()?.status === "suspended" || !roles.includes(String(membership.data()?.role))) {
     throw new HttpsError("permission-denied", "이 작업을 수행할 권한이 없습니다.");
   }
 }
 
+export const {
+  getPlatformAdminAccess,
+  getPlatformAdminDashboard,
+  confirmPlatformPayment,
+  updatePlatformOrganizationStatus,
+} = createPlatformAdminFunctions({
+  db,
+  requireAppCheck: requireCallableAppCheck,
+  adminEmails: () => platformAdminEmails.value(),
+});
+
 export const listUserOrganizations = onCall({ enforceAppCheck: false }, async (request) => {
   requireCallableAppCheck(request);
   if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  const organizations = await db.collection("organizations").select("name").get();
+  const organizations = await db.collection("organizations").select("name", "platformStatus", "subscription").get();
   const memberships = organizations.empty
     ? []
     : await db.getAll(...organizations.docs.map((organization) => organization.ref.collection("members").doc(request.auth!.uid)));
@@ -260,10 +283,14 @@ export const listUserOrganizations = onCall({ enforceAppCheck: false }, async (r
     organizations: organizations.docs.flatMap((organization, index) => {
       const membership = memberships[index];
       if (!membership?.exists || membership.data()?.status !== "active") return [];
+      const subscriptionExpiresAt = organization.data().subscription?.expiresAt;
+      const expired = typeof subscriptionExpiresAt?.toMillis === "function" && subscriptionExpiresAt.toMillis() < Date.now();
       return [{
         id: organization.id,
         name: String(organization.data().name ?? "이름 없는 업무공간"),
         role: String(membership.data()?.role ?? "viewer"),
+        status: organization.data().platformStatus === "suspended" || expired ? "suspended" : "active",
+        subscriptionExpiresAt: subscriptionExpiresAt?.toDate?.().toISOString?.() ?? null,
       }];
     }).sort((left, right) => left.name.localeCompare(right.name, "ko")),
   };
@@ -296,10 +323,26 @@ export const bootstrapOrganization = onCall({ enforceAppCheck: false }, async (r
   const organizationRef = db.collection("organizations").doc();
   const userRef = db.doc(`users/${request.auth.uid}`);
   const memberRef = organizationRef.collection("members").doc(request.auth.uid);
+  const now = new Date();
+  const trialEndsAt = new Date(now.getTime() + 30 * 86_400_000);
   await db.runTransaction(async (transaction) => {
     const user = await transaction.get(userRef);
     if (user.data()?.defaultOrganizationId) throw new HttpsError("already-exists", "이미 기본 조직이 있습니다.");
-    transaction.set(organizationRef, { name, ownerId: request.auth!.uid, createdAt: FieldValue.serverTimestamp(), reminderOffsets: [7, 3, 1, 0, -1] });
+    transaction.set(organizationRef, {
+      name,
+      ownerId: request.auth!.uid,
+      platformStatus: "active",
+      subscription: {
+        status: "trial",
+        planCode: "manual",
+        startedAt: now,
+        trialEndsAt,
+        expiresAt: trialEndsAt,
+        updatedAt: now,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+      reminderOffsets: [7, 3, 1, 0, -1],
+    });
     transaction.set(memberRef, { uid: request.auth!.uid, email: request.auth!.token.email ?? "", displayName: request.auth!.token.name ?? "사용자", role: "admin", status: "active", createdAt: FieldValue.serverTimestamp() });
     transaction.set(userRef, { email: request.auth!.token.email ?? "", displayName: request.auth!.token.name ?? "사용자", defaultOrganizationId: organizationRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   });
