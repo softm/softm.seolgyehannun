@@ -28,6 +28,12 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
       await setDoc(doc(firestore, "organizations/org-a/members/viewer-a"), { role: "viewer", status: "active" });
       await setDoc(doc(firestore, "organizations/org-a/members/suspended-a"), { role: "editor", status: "suspended" });
       await setDoc(doc(firestore, "organizations/org-a/members/legacy-a"), { role: "viewer" });
+      await setDoc(doc(firestore, "platformAdmins/platform-admin"), { role: "owner", status: "active" });
+      await setDoc(doc(firestore, "platformAdmins/platform-viewer"), { role: "operator", status: "active" });
+      await setDoc(doc(firestore, "platformAdmins/platform-expired"), { role: "owner", status: "active" });
+      await setDoc(doc(firestore, "platformWorkspaceAccess/platform-admin"), { organizationId: "org-a", role: "editor", status: "active", accessVersion: 0, expiresAt: new Date("2099-01-01T00:00:00.000Z") });
+      await setDoc(doc(firestore, "platformWorkspaceAccess/platform-viewer"), { organizationId: "org-a", role: "viewer", status: "active", accessVersion: 0, expiresAt: new Date("2099-01-01T00:00:00.000Z") });
+      await setDoc(doc(firestore, "platformWorkspaceAccess/platform-expired"), { organizationId: "org-a", role: "admin", status: "active", accessVersion: 0, expiresAt: new Date("2020-01-01T00:00:00.000Z") });
       await setDoc(doc(firestore, "organizations/org-b"), { name: "B", ownerId: "admin-b" });
       await setDoc(doc(firestore, "organizations/org-b/members/admin-b"), { role: "admin", status: "active" });
       await setDoc(doc(firestore, "organizations/org-suspended"), { name: "정지 조직", ownerId: "admin-suspended", platformStatus: "suspended" });
@@ -95,6 +101,38 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     await assertSucceeds(setDoc(doc(admin, "organizations/org-a/members/new-user"), { role: "viewer" }));
   });
 
+  it("사이트 관리자의 대리 접속은 선택한 권한과 조직·만료시간으로 제한한다", async () => {
+    const editor = environment.authenticatedContext("platform-admin").firestore();
+    const viewer = environment.authenticatedContext("platform-viewer").firestore();
+    const expired = environment.authenticatedContext("platform-expired").firestore();
+    await assertSucceeds(getDoc(doc(viewer, "organizations/org-a/cases/case-1")));
+    await assertFails(updateDoc(doc(viewer, "organizations/org-a/cases/case-1"), { title: "열람자 변경" }));
+    await assertSucceeds(updateDoc(doc(editor, "organizations/org-a/cases/case-1"), { title: "편집자 변경" }));
+    await assertFails(setDoc(doc(editor, "organizations/org-a/members/platform-new"), { role: "viewer" }));
+    await assertFails(getDoc(doc(editor, "organizations/org-b")));
+    await assertFails(getDoc(doc(expired, "organizations/org-a/cases/case-1")));
+    await assertFails(updateDoc(doc(editor, "platformWorkspaceAccess/platform-admin"), { role: "admin" }));
+  });
+
+  it("대리 접속 중에는 실제 멤버십보다 선택한 권한을 우선한다", async () => {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      const firestore = context.firestore();
+      await setDoc(doc(firestore, "platformAdmins/admin-a"), { role: "owner", status: "active" });
+      await setDoc(doc(firestore, "platformWorkspaceAccess/admin-a"), { organizationId: "org-a", role: "viewer", status: "active", accessVersion: 0, expiresAt: new Date("2099-01-01T00:00:00.000Z") });
+    });
+    const delegatedViewer = environment.authenticatedContext("admin-a").firestore();
+    await assertSucceeds(getDoc(doc(delegatedViewer, "organizations/org-a/cases/case-1")));
+    await assertFails(updateDoc(doc(delegatedViewer, "organizations/org-a/cases/case-1"), { title: "관리자 권한 우회" }));
+  });
+
+  it("조직이 대리 접속 버전을 갱신하면 기존 세션을 즉시 차단한다", async () => {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "organizations/org-a"), { platformAccessVersion: 1 });
+    });
+    const staleSession = environment.authenticatedContext("platform-admin").firestore();
+    await assertFails(getDoc(doc(staleSession, "organizations/org-a/cases/case-1")));
+  });
+
   it("관리자만 운영 설정을 쓰고 자기 자신의 멤버십은 직접 변경하지 못한다", async () => {
     const admin = environment.authenticatedContext("admin-a").firestore();
     const editor = environment.authenticatedContext("editor-a").firestore();
@@ -120,6 +158,25 @@ describe.skipIf(!runEmulatorTests)("Firebase 조직 격리와 역할", () => {
     await assertFails(uploadBytes(ref(storage, `${base}/run.exe`), new Uint8Array([1, 2, 3]), { contentType: "application/octet-stream" }));
     await assertFails(uploadBytes(ref(storage, `${base}/huge.pdf`), new Uint8Array(50 * 1024 * 1024 + 1), { contentType: "application/pdf" }));
   }, 30_000);
+
+  it("Storage도 대리 접속에서 선택한 권한과 만료시간을 적용한다", async () => {
+    const future = new Date("2099-01-01T00:00:00.000Z").getTime();
+    const editor = environment.authenticatedContext("platform-admin", {
+      platformWorkspaceOrganizationId: "org-a",
+      platformWorkspaceRole: "editor",
+      platformWorkspaceExpiresAt: future,
+      platformWorkspaceAccessVersion: 0,
+    }).storage();
+    const viewer = environment.authenticatedContext("platform-viewer", {
+      platformWorkspaceOrganizationId: "org-a",
+      platformWorkspaceRole: "viewer",
+      platformWorkspaceExpiresAt: future,
+      platformWorkspaceAccessVersion: 0,
+    }).storage();
+    const base = "organizations/org-a/cases/case-1/attachments/platform-a1";
+    await assertSucceeds(uploadBytes(ref(editor, `${base}/editor.pdf`), new Uint8Array([1, 2, 3]), { contentType: "application/pdf" }));
+    await assertFails(uploadBytes(ref(viewer, `${base}/viewer.pdf`), new Uint8Array([1, 2, 3]), { contentType: "application/pdf" }));
+  });
 
   it("조직 구성원만 생성 문서를 읽을 수 있다", async () => {
     const path = "organizations/org-a/cases/case-1/documents/v002/사업계획서_v002.pdf";
