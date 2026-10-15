@@ -1,4 +1,18 @@
 export type PlatformOrganizationStatus = "active" | "trial" | "expiring" | "expired" | "suspended" | "unconfigured";
+export type PlatformWorkspaceRole = "admin" | "editor" | "viewer";
+
+export const PLATFORM_WORKSPACE_SESSION_MS = 2 * 60 * 60 * 1_000;
+
+export function normalizePlatformWorkspaceRole(value: unknown): PlatformWorkspaceRole | null {
+  return value === "admin" || value === "editor" || value === "viewer" ? value : null;
+}
+
+export function calculatePlatformWorkspaceExpiry(now: Date, subscriptionExpiry?: Date | null): Date {
+  if (Number.isNaN(now.getTime())) throw new Error("현재 날짜가 올바르지 않습니다.");
+  const sessionExpiry = new Date(now.getTime() + PLATFORM_WORKSPACE_SESSION_MS);
+  if (!subscriptionExpiry || Number.isNaN(subscriptionExpiry.getTime())) return sessionExpiry;
+  return subscriptionExpiry < sessionExpiry ? new Date(subscriptionExpiry.getTime()) : sessionExpiry;
+}
 
 export function normalizeAdminEmails(value: string): string[] {
   return [...new Set(value

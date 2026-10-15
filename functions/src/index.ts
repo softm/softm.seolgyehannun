@@ -147,10 +147,7 @@ export const api = onRequest(
         if (!organizationId || !caseId || !documentId || !type) {
           throw new HttpsError("invalid-argument", "문서 다운로드 요청을 확인해 주세요.");
         }
-        const membership = await db.doc(`organizations/${organizationId}/members/${actor.uid}`).get();
-        if (!membership.exists || !["admin", "editor", "viewer"].includes(String(membership.data()?.role))) {
-          throw new HttpsError("permission-denied", "이 문서를 내려받을 권한이 없습니다.");
-        }
+        await requireActorRole(actor.uid, organizationId, ["admin", "editor", "viewer"]);
         const documentSnapshot = await db.doc(`organizations/${organizationId}/cases/${caseId}/documents/${documentId}`).get();
         const documentData = documentSnapshot.data();
         if (!documentSnapshot.exists || documentData?.status !== "ready") {
@@ -243,12 +240,13 @@ export const api = onRequest(
   },
 );
 
-async function requireRole(request: CallableRequest, organizationId: string, roles: string[]): Promise<void> {
-  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  const [membership, organization] = await Promise.all([
-    db.doc(`organizations/${organizationId}/members/${request.auth.uid}`).get(),
+async function requireActorRole(uid: string, organizationId: string, roles: string[]): Promise<void> {
+  const [membership, organization, workspaceAccess] = await Promise.all([
+    db.doc(`organizations/${organizationId}/members/${uid}`).get(),
     db.doc(`organizations/${organizationId}`).get(),
+    db.doc(`platformWorkspaceAccess/${uid}`).get(),
   ]);
+  if (!organization.exists) throw new HttpsError("not-found", "설계사무소를 찾을 수 없습니다.");
   if (organization.data()?.platformStatus === "suspended") {
     throw new HttpsError("failed-precondition", "이 설계사무소의 서비스 이용이 정지되었습니다.");
   }
@@ -256,18 +254,42 @@ async function requireRole(request: CallableRequest, organizationId: string, rol
   if (typeof expiresAt?.toMillis === "function" && expiresAt.toMillis() < Date.now()) {
     throw new HttpsError("failed-precondition", "이 설계사무소의 서비스 이용기간이 만료되었습니다.");
   }
-  if (!membership.exists || membership.data()?.status === "suspended" || !roles.includes(String(membership.data()?.role))) {
+
+  const workspaceData = workspaceAccess.data();
+  const workspaceExpiry = workspaceData?.expiresAt;
+  const accessVersion = Number(organization.data()?.platformAccessVersion ?? 0);
+  const delegatedRole = workspaceAccess.exists
+    && workspaceData?.status === "active"
+    && workspaceData?.organizationId === organizationId
+    && typeof workspaceExpiry?.toMillis === "function"
+    && workspaceExpiry.toMillis() > Date.now()
+    && Number(workspaceData?.accessVersion ?? 0) === accessVersion
+    ? String(workspaceData.role ?? "")
+    : null;
+  const memberRole = membership.exists && membership.data()?.status !== "suspended"
+    ? String(membership.data()?.role ?? "")
+    : null;
+  const effectiveRole = delegatedRole ?? memberRole;
+  if (!effectiveRole || !roles.includes(effectiveRole)) {
     throw new HttpsError("permission-denied", "이 작업을 수행할 권한이 없습니다.");
   }
 }
 
+async function requireRole(request: CallableRequest, organizationId: string, roles: string[]): Promise<void> {
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  await requireActorRole(request.auth.uid, organizationId, roles);
+}
+
 export const {
   getPlatformAdminAccess,
+  startPlatformWorkspaceAccess,
+  endPlatformWorkspaceAccess,
   getPlatformAdminDashboard,
   confirmPlatformPayment,
   updatePlatformOrganizationStatus,
 } = createPlatformAdminFunctions({
   db,
+  auth: getAuth(),
   requireAppCheck: requireCallableAppCheck,
   adminEmails: () => platformAdminEmails.value(),
 });
