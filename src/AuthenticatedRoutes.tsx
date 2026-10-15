@@ -12,13 +12,24 @@ const OrganizationSetupPage = lazy(() => import("./pages/OrganizationSetupPage")
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const TeamPage = lazy(() => import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })));
 const InvitationPage = lazy(() => import("./pages/InvitationPage").then((module) => ({ default: module.InvitationPage })));
+const PlatformAdminPage = lazy(() => import("./pages/PlatformAdminPage").then((module) => ({ default: module.PlatformAdminPage })));
+const OrganizationSuspendedPage = lazy(() => import("./pages/OrganizationSuspendedPage").then((module) => ({ default: module.OrganizationSuspendedPage })));
 
 function ProtectedApp() {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (!user.isDemo && !user.organizationId) return <OrganizationSetupPage />;
+  if (!user.isDemo && user.organizationStatus === "suspended") return <OrganizationSuspendedPage />;
   return <CasesProvider><AppLayout /></CasesProvider>;
+}
+
+function ProtectedPlatformAdmin() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen label="사이트 관리자 권한을 확인하고 있습니다" />;
+  if (!user) return <Navigate to="/login?returnTo=%2Fsite-admin" replace />;
+  if (!user.platformRole) return <Navigate to="/app" replace />;
+  return <PlatformAdminPage />;
 }
 
 export default function AuthenticatedRoutes() {
@@ -28,6 +39,7 @@ export default function AuthenticatedRoutes() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/invite" element={<InvitationPage />} />
+          <Route path="/site-admin" element={<ProtectedPlatformAdmin />} />
           <Route path="/app" element={<ProtectedApp />}>
             <Route index element={<DashboardPage />} />
             <Route path="cases" element={<DashboardPage listOnly />} />

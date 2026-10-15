@@ -306,6 +306,8 @@ export interface OrganizationWorkspace {
   id: string;
   name: string;
   role: OrganizationRole;
+  status?: "active" | "suspended";
+  subscriptionExpiresAt?: string | null;
 }
 
 export interface AppUser {
@@ -317,6 +319,9 @@ export interface AppUser {
   role: OrganizationRole;
   isDemo: boolean;
   organizations?: OrganizationWorkspace[];
+  organizationStatus?: "active" | "suspended";
+  subscriptionExpiresAt?: string | null;
+  platformRole?: "owner" | "operator" | null;
 }
 
 export interface AuditEvent {
