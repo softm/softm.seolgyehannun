@@ -3,10 +3,11 @@ import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-r
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
 import { useAuth } from "../context";
+import { authenticationErrorMessage } from "../services/authError";
 import { firebaseConfigured } from "../services/firebase";
 
 export function LoginPage() {
-  const { user, loginWithGoogle, loginWithEmail, register, startDemo } = useAuth();
+  const { user, loginWithGoogle, loginWithEmail, resetPassword, register, startDemo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -16,7 +17,9 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const requestedReturnTo = new URLSearchParams(location.search).get("returnTo") ?? "";
   const destination = requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
     ? requestedReturnTo
@@ -33,12 +36,13 @@ export function LoginPage() {
     event.preventDefault();
     setPending(true);
     setError("");
+    setMessage("");
     try {
       if (mode === "register") await register(name, joiningInvitation ? "" : organizationName, email, password);
       else await loginWithEmail(email, password);
       navigate(destination);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "로그인에 실패했습니다.");
+      setError(authenticationErrorMessage(reason, mode === "login" ? "로그인에 실패했습니다." : "계정을 만들지 못했습니다."));
     } finally {
       setPending(false);
     }
@@ -47,13 +51,33 @@ export function LoginPage() {
   async function googleLogin() {
     setPending(true);
     setError("");
+    setMessage("");
     try {
       await loginWithGoogle();
       navigate(destination);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Google 로그인에 실패했습니다.");
+      setError(authenticationErrorMessage(reason, "Google 로그인에 실패했습니다."));
     } finally {
       setPending(false);
+    }
+  }
+
+  async function sendResetEmail() {
+    const targetEmail = email.trim();
+    setError("");
+    setMessage("");
+    if (!targetEmail) {
+      setError("비밀번호를 재설정할 이메일을 먼저 입력해 주세요.");
+      return;
+    }
+    setResetPending(true);
+    try {
+      await resetPassword(targetEmail);
+      setMessage("입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 발송했습니다. 받은편지함과 스팸함을 확인해 주세요.");
+    } catch (reason) {
+      setError(authenticationErrorMessage(reason, "비밀번호 재설정 안내를 보내지 못했습니다."));
+    } finally {
+      setResetPending(false);
     }
   }
 
@@ -92,7 +116,7 @@ export function LoginPage() {
 
           {firebaseConfigured && (
             <>
-              <button type="button" className="google-button" onClick={googleLogin} disabled={pending}>
+              <button type="button" className="google-button" onClick={googleLogin} disabled={pending || resetPending}>
                 <span className="google-g">G</span> Google로 계속
               </button>
               <div className="form-divider"><span>또는 이메일</span></div>
@@ -108,14 +132,16 @@ export function LoginPage() {
             )}
             <label>
               이메일
-              <span className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="name@company.com" required /></span>
+              <span className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage(""); }} autoComplete="email" placeholder="name@company.com" required /></span>
             </label>
             <label>
               비밀번호
               <span className="input-with-icon"><LockKeyhole size={18} /><input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} minLength={6} placeholder="6자 이상" required /><button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
             </label>
+            {mode === "login" && firebaseConfigured && <button type="button" className="password-reset-button" onClick={() => void sendResetEmail()} disabled={pending || resetPending}>{resetPending ? "전송 중…" : "비밀번호를 잊으셨나요?"}</button>}
             {error && <div className="form-error" role="alert">{error}</div>}
-            <button type="submit" className="button button-primary button-full" disabled={pending || !firebaseConfigured}>
+            {message && <div className="form-success" role="status" aria-live="polite">{message}</div>}
+            <button type="submit" className="button button-primary button-full" disabled={pending || resetPending || !firebaseConfigured}>
               {pending ? "확인 중…" : mode === "login" ? "로그인" : "계정 만들기"}
             </button>
           </form>
@@ -127,7 +153,7 @@ export function LoginPage() {
           {firebaseConfigured && (
             <p className="mode-switch">
               {mode === "login" ? "처음 사용하시나요?" : "이미 계정이 있나요?"}
-              <button type="button" onClick={() => setMode((current) => current === "login" ? "register" : "login")}>{mode === "login" ? "계정 만들기" : "로그인"}</button>
+              <button type="button" onClick={() => { setMode((current) => current === "login" ? "register" : "login"); setError(""); setMessage(""); }}>{mode === "login" ? "계정 만들기" : "로그인"}</button>
             </p>
           )}
           <p className="login-notice">접속하면 조직의 이용정책과 개인정보 처리방침에 동의하게 됩니다.</p>
