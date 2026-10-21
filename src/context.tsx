@@ -16,6 +16,7 @@ import {
   observeUser,
   reloadCurrentUser,
   registerWithEmail,
+  requestPasswordReset,
   signInWithEmail,
   signInWithGoogle,
   startDemoSession,
@@ -28,6 +29,7 @@ interface AuthContextValue {
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   register: (name: string, organizationName: string, email: string, password: string) => Promise<void>;
   startDemo: () => void;
   createOrganization: (name: string) => Promise<void>;
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     loginWithGoogle: async () => setUser(await signInWithGoogle()),
     loginWithEmail: async (email, password) => setUser(await signInWithEmail(email, password)),
+    resetPassword: requestPasswordReset,
     register: async (name, organizationName, email, password) => setUser(await registerWithEmail(name, organizationName, email, password)),
     startDemo: () => setUser(startDemoSession()),
     createOrganization: async (name) => setUser(await bootstrapUserOrganization(name)),

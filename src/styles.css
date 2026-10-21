@@ -294,6 +294,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .input-with-icon input { padding-left: 42px; padding-right: 43px; }
 .input-with-icon button { position: absolute; right: 4px; width: 40px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; color: #7f8b96; cursor: pointer; }
 .form-error { padding: 11px 13px; border-radius: 9px; background: #fff0ee; color: #b43227; font-size: 11px; }
+.form-success { padding: 11px 13px; border: 1px solid #b9dfd8; border-radius: 9px; background: #eaf8f5; color: #075f57; font-size: 14px; line-height: 1.55; }
+.password-reset-button { justify-self: end; min-height: 44px; margin-top: -12px; padding: 0; border: 0; background: transparent; color: var(--teal-700); font-size: 14px; font-weight: 800; cursor: pointer; }
+.password-reset-button:disabled { cursor: wait; opacity: 0.65; }
 .demo-entry { margin-top: 12px; }
 .mode-switch { margin: 21px 0 0; text-align: center; color: #71808c; font-size: 12px; }
 .mode-switch button { min-height: 44px; border: 0; background: transparent; color: var(--teal-700); font-weight: 800; cursor: pointer; }
