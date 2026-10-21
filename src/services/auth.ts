@@ -2,6 +2,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -159,15 +160,22 @@ export async function signInWithEmail(email: string, password: string): Promise<
   const services = getFirebaseServices();
   if (!services) return startDemoSession();
   localStorage.removeItem(demoSessionKey);
-  const credential = await signInWithEmailAndPassword(services.auth, email, password);
+  const credential = await signInWithEmailAndPassword(services.auth, email.trim(), password);
   return mapFirebaseUser(credential.user);
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const services = getFirebaseServices();
+  if (!services) throw new Error("Firebase가 설정되지 않았습니다.");
+  services.auth.languageCode = "ko";
+  await sendPasswordResetEmail(services.auth, email.trim());
 }
 
 export async function registerWithEmail(name: string, organizationName: string, email: string, password: string): Promise<AppUser> {
   const services = getFirebaseServices();
   if (!services) return startDemoSession();
   localStorage.removeItem(demoSessionKey);
-  const credential = await createUserWithEmailAndPassword(services.auth, email, password);
+  const credential = await createUserWithEmailAndPassword(services.auth, email.trim(), password);
   await updateProfile(credential.user, { displayName: name });
   if (organizationName.trim()) {
     const bootstrap = httpsCallable<{ name: string }, { organizationId: string }>(
