@@ -41,6 +41,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 ::selection { background: var(--mint-300); color: var(--teal-950); }
 
+/* Kakao AdFit is limited to the public landing page and stays in document flow. */
+.landing-adfit {
+  width: min(100%, 760px);
+  min-height: 118px;
+  margin: 56px auto 0;
+  padding: 17px 16px 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+  position: relative;
+}
+.landing-adfit-label { position: absolute; top: 3px; left: 50%; width: min(728px, calc(100% - 32px)); transform: translateX(-50%); color: var(--muted); font-size: 9px; font-weight: 700; }
+.landing-adfit-host { width: 100%; min-height: 100px; display: grid; place-items: center; }
+
+@media (max-width: 420px) {
+  .landing-adfit { padding-right: 0; padding-left: 0; border-right: 0; border-left: 0; border-radius: 0; }
+}
+
 .button {
   min-height: 44px;
   padding: 0 18px;
