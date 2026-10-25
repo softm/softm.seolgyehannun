@@ -14,6 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Brand, LogoMark } from "../components/Brand";
+import { AdFitBanner } from "../components/AdFitBanner";
 
 const flowSteps = [
   { number: "01", title: "필지 묶기", copy: "대표 필지와 연접 필지를 PNU로 연결합니다." },
@@ -139,6 +140,7 @@ export function LandingPage() {
               </article>
             ))}
           </div>
+          <AdFitBanner />
         </section>
 
         <section className="product-section" id="product">
